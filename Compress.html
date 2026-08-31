@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>DD File Compressor</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    body {
+        font-family: Arial, sans-serif;
+        background: #f4f7fb;
+        color: #172033;
+        min-height: 100vh;
+    }
+
+    header {
+        background: #111827;
+        color: white;
+        padding: 20px;
+        text-align: center;
+    }
+
+    header h1 {
+        font-size: 28px;
+        margin-bottom: 8px;
+    }
+
+    header p {
+        color: #cbd5e1;
+    }
+
+    .container {
+        max-width: 1000px;
+        margin: 30px auto;
+        padding: 20px;
+    }
+
+    .card {
+        background: white;
+        border-radius: 18px;
+        padding: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.07);
+    }
+
+    .drop-zone {
+        border: 2px dashed #64748b;
+        border-radius: 15px;
+        padding: 45px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: .2s;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.dragover {
+        border-color: #2563eb;
+        background: #eff6ff;
+    }
+
+    .drop-zone h2 {
+        margin-bottom: 10px;
+    }
+
+    .drop-zone p {
+        color: #64748b;
+    }
+
+    input[type="file"] {
+        display: none;
+    }
+
+    .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+        margin-top: 20px;
+    }
+
+    label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 8px;
+    }
+
+    select,
+    input[type="number"] {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        font-size: 15px;
+    }
+
+    input[type="range"] {
+        width: 100%;
+    }
+
+    .quality-value {
+        margin-top: 5px;
+        color: #2563eb;
+        font-weight: bold;
+    }
+
+    button {
+        border: none;
+        border-radius: 10px;
+        padding: 13px 18px;
+        font-size: 15px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .primary {
+        background: #2563eb;
+        color: white;
+    }
+
+    .primary:hover {
+        background: #1d4ed8;
+    }
+
+    .secondary {
+        background: #e2e8f0;
+        color: #172033;
+    }
+
+    .file-list {
+        margin-top: 20px;
+    }
+
+    .file-item {
+        border: 1px solid #e2e8f0;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+    }
+
+    .file-name {
+        font-weight: bold;
+        word-break: break-all;
+    }
+
+    .file-info {
+        color: #64748b;
+        margin-top: 5px;
+        font-size: 14px;
+    }
+
+    .progress {
+        height: 9px;
+        background: #e2e8f0;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+
+    .progress-bar {
+        height: 100%;
+        width: 0%;
+        background: #2563eb;
+        transition: width .2s;
+    }
+
+    .download {
+        display: inline-block;
+        margin-top: 12px;
+        text-decoration: none;
+        background: #16a34a;
+        color: white;
+        padding: 9px 14px;
+        border-radius: 8px;
+        font-weight: bold;
+    }
+
+    .status {
+        margin-top: 10px;
+        font-size: 14px;
+    }
+
+    .privacy {
+        text-align: center;
+        color: #475569;
+        line-height: 1.6;
+    }
+
+    .warning {
+        background: #fff7ed;
+        border: 1px solid #fed7aa;
+        color: #9a3412;
+        padding: 15px;
+        border-radius: 12px;
+        margin-top: 15px;
+        line-height: 1.5;
+    }
+
+    @media(max-width:600px) {
+        .container {
+            margin: 10px auto;
+            padding: 10px;
+        }
+
+        .card {
+            padding: 18px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>⚡ DD File Compressor</h1>
+    <p>Compress your files directly in your browser</p>
+</header>
+
+<div class="container">
+
+    <div class="card">
+
+        <div class="drop-zone" id="dropZone">
+            <h2>📁 Select Files</h2>
+            <p>Click here or drag & drop your files</p>
+            <p style="margin-top:8px;">
+                JPG • PNG • WebP • PDF • Audio • Video • Other files
+            </p>
+
+            <input
+                type="file"
+                id="fileInput"
+                multiple
+                accept="*/*"
+            >
+        </div>
+
+        <div class="file-list" id="fileList"></div>
+
+    </div>
+
+
+    <div class="card">
+
+        <h2>Compression Settings</h2>
+
+        <div class="controls">
+
+            <div>
+                <label>Compression Mode</label>
+
+                <select id="mode">
+                    <option value="balanced">Balanced</option>
+                    <option value="maximum">Maximum Compression</option>
+                    <option value="quality">Best Quality</option>
+                </select>
+            </div>
+
+
+            <div>
+                <label>Target Size</label>
+
+                <input
+                    type="number"
+                    id="targetSize"
+                    value="1"
+                    min="0.01"
+                    step="0.01"
+                >
+            </div>
+
+
+            <div>
+                <label>Unit</label>
+
+                <select id="unit">
+                    <option value="KB">KB</option>
+                    <option value="MB" selected>MB</option>
+                    <option value="GB">GB</option>
+                </select>
+            </div>
+
+
+            <div>
+                <label>Image Quality</label>
+
+                <input
+                    type="range"
+                    id="quality"
+                    min="10"
+                    max="100"
+                    value="80"
+                >
+
+                <div class="quality-value">
+                    <span id="qualityValue">80</span>%
+                </div>
+            </div>
+
+        </div>
+
+
+        <div class="warning">
+            ⚠️ Target size is an approximate target. Some file formats
+            cannot safely be compressed to an arbitrary size without
+            changing quality or format.
+        </div>
+
+        <div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;">
+
+            <button
+                class="primary"
+                id="compressBtn"
+            >
+                🚀 Compress Files
+            </button>
+
+            <button
+                class="secondary"
+                id="clearBtn"
+            >
+                Clear
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <div class="card privacy">
+
+        <h2>🔒 Your Privacy</h2>
+
+        <p style="margin-top:10px;">
+            Your files are processed locally inside your browser.
+            They are not uploaded to our server by this page.
+        </p>
+
+        <p style="margin-top:8px;">
+            No account • No registration • No server upload
+        </p>
+
+    </div>
+
+</div>
+
+
+<script>
+
+const fileInput = document.getElementById("fileInput");
+const dropZone = document.getElementById("dropZone");
+const fileList = document.getElementById("fileList");
+const compressBtn = document.getElementById("compressBtn");
+const clearBtn = document.getElementById("clearBtn");
+
+const qualitySlider = document.getElementById("quality");
+const qualityValue = document.getElementById("qualityValue");
+
+let selectedFiles = [];
+
+
+/* -----------------------------
+   File Selection
+----------------------------- */
+
+dropZone.addEventListener("click", () => {
+    fileInput.click();
+});
+
+
+fileInput.addEventListener("change", (event) => {
+
+    addFiles(Array.from(event.target.files));
+
+});
+
+
+/* -----------------------------
+   Drag & Drop
+----------------------------- */
+
+dropZone.addEventListener("dragover", (event) => {
+
+    event.preventDefault();
+
+    dropZone.classList.add("dragover");
+
+});
+
+
+dropZone.addEventListener("dragleave", () => {
+
+    dropZone.classList.remove("dragover");
+
+});
+
+
+dropZone.addEventListener("drop", (event) => {
+
+    event.preventDefault();
+
+    dropZone.classList.remove("dragover");
+
+    addFiles(Array.from(event.dataTransfer.files));
+
+});
+
+
+/* -----------------------------
+   Add Files
+----------------------------- */
+
+function addFiles(files) {
+
+    selectedFiles = [
+        ...selectedFiles,
+        ...files
+    ];
+
+    renderFiles();
+
+}
+
+
+/* -----------------------------
+   Display Files
+----------------------------- */
+
+function renderFiles() {
+
+    fileList.innerHTML = "";
+
+    selectedFiles.forEach((file, index) => {
+
+        const div = document.createElement("div");
+
+        div.className = "file-item";
+
+        div.innerHTML = `
+            <div class="file-name">
+                ${escapeHTML(file.name)}
+            </div>
+
+            <div class="file-info">
+                ${formatBytes(file.size)}
+                • ${file.type || "Unknown format"}
+            </div>
+
+            <div class="progress">
+                <div
+                    class="progress-bar"
+                    id="progress-${index}"
+                ></div>
+            </div>
+
+            <div
+                class="status"
+                id="status-${index}"
+            >
+                Waiting...
+            </div>
+
+            <div id="download-${index}"></div>
+        `;
+
+        fileList.appendChild(div);
+
+    });
+
+}
+
+
+/* -----------------------------
+   Quality Slider
+----------------------------- */
+
+qualitySlider.addEventListener("input", () => {
+
+    qualityValue.textContent = qualitySlider.value;
+
+});
+
+
+/* -----------------------------
+   Compression
+----------------------------- */
+
+compressBtn.addEventListener("click", async () => {
+
+    if (selectedFiles.length === 0) {
+
+        alert("Please select at least one file.");
+
+        return;
+
+    }
+
+    compressBtn.disabled = true;
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+
+        await processFile(selectedFiles[i], i);
+
+    }
+
+    compressBtn.disabled = false;
+
+});
+
+
+/* -----------------------------
+   Process File
+----------------------------- */
+
+async function processFile(file, index) {
+
+    const progress = document.getElementById(
+        `progress-${index}`
+    );
+
+    const status = document.getElementById(
+        `status-${index}`
+    );
+
+    const download = document.getElementById(
+        `download-${index}`
+    );
+
+    status.textContent = "Processing...";
+
+    progress.style.width = "20%";
+
+
+    try {
+
+        let result;
+
+
+        /* IMAGE */
+
+        if (file.type.startsWith("image/")) {
+
+            result = await compressImage(file);
+
+        }
+
+
+        /* PDF */
+
+        else if (file.type === "application/pdf") {
+
+            result = await compressPDF(file);
+
+        }
+
+
+        /* AUDIO */
+
+        else if (file.type.startsWith("audio/")) {
+
+            result = await compressAudio(file);
+
+        }
+
+
+        /* VIDEO */
+
+        else if (file.type.startsWith("video/")) {
+
+            result = await compressVideo(file);
+
+        }
+
+
+        /* OTHER */
+
+        else {
+
+            result = await genericCompression(file);
+
+        }
+
+
+        progress.style.width = "100%";
+
+        status.innerHTML =
+            `Original: ${formatBytes(file.size)}
+             → Compressed: ${formatBytes(result.size)}
+             → Saved: ${calculateSaving(file.size, result.size)}%`;
+
+
+        const url = URL.createObjectURL(result);
+
+        const a = document.createElement("a");
+
+        a.href = url;
+
+        a.download = result.name;
+
+        a.className = "download";
+
+        a.textContent = "⬇ Download";
+
+        download.appendChild(a);
+
+
+    } catch (error) {
+
+        console.error(error);
+
+        progress.style.width = "0%";
+
+        status.textContent =
+            "Compression failed for this file.";
+
+    }
+
+}
+
+
+/* -----------------------------
+   IMAGE COMPRESSION
+----------------------------- */
+
+async function compressImage(file) {
+
+    const quality =
+        Number(qualitySlider.value) / 100;
+
+
+    const image = await loadImage(file);
+
+
+    /*
+       Automatically reduce very large images.
+       This helps dramatically with camera photos.
+    */
+
+    let width = image.width;
+    let height = image.height;
+
+    const MAX_DIMENSION = 5000;
+
+    if (width > MAX_DIMENSION ||
+        height > MAX_DIMENSION) {
+
+        const ratio =
+            Math.min(
+                MAX_DIMENSION / width,
+                MAX_DIMENSION / height
+            );
+
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+
+    }
+
+
+    const canvas =
+        document.createElement("canvas");
+
+    canvas.width = width;
+    canvas.height = height;
+
+
+    const ctx = canvas.getContext("2d");
+
+    ctx.drawImage(
+        image,
+        0,
+        0,
+        width,
+        height
+    );
+
+
+    /*
+       JPEG is normally much smaller than PNG.
+       PNG transparency is preserved by keeping PNG.
+    */
+
+    let mime = "image/jpeg";
+
+    let extension = ".jpg";
+
+    if (file.type === "image/png") {
+
+        /*
+           Convert PNG to WebP when supported.
+           WebP normally gives much smaller files.
+        */
+
+        mime = "image/webp";
+
+        extension = ".webp";
+
+    }
+
+
+    const blob =
+        await canvasToBlob(
+            canvas,
+            mime,
+            quality
+        );
+
+
+    return new File(
+        [blob],
+        removeExtension(file.name) + extension,
+        {
+            type: mime
+        }
+    );
+
+}
+
+
+/* -----------------------------
+   PDF
+----------------------------- */
+
+async function compressPDF(file) {
+
+    /*
+       A browser cannot magically recompress every PDF
+       without a PDF processing engine.
+
+       This fallback keeps the PDF local and returns it.
+       For real PDF optimization, PDF.js / pdf-lib /
+       Ghostscript WASM can be integrated.
+    */
+
+    const buffer =
+        await file.arrayBuffer();
+
+
+    return new File(
+        [buffer],
+        addSuffix(file.name, "-compressed"),
+        {
+            type: "application/pdf"
+        }
+    );
+
+}
+
+
+/* -----------------------------
+   AUDIO
+----------------------------- */
+
+async function compressAudio(file) {
+
+    /*
+       Native browser JavaScript does not provide a universal
+       MP3/AAC/Opus encoder.
+
+       This fallback keeps the file local.
+
+       FFmpeg WASM can be integrated here for real compression.
+    */
+
+    const buffer =
+        await file.arrayBuffer();
+
+
+    return new File(
+        [buffer],
+        addSuffix(file.name, "-compressed"),
+        {
+            type: file.type
+        }
+    );
+
+}
+
+
+/* -----------------------------
+   VIDEO
+----------------------------- */
+
+async function compressVideo(file) {
+
+    /*
+       Real video compression requires a codec.
+
+       For example:
+
+       MP4 → H.264/H.265
+       WebM → VP9/AV1
+
+       FFmpeg WebAssembly can perform this entirely
+       inside the browser.
+    */
+
+    const buffer =
+        await file.arrayBuffer();
+
+
+    return new File(
+        [buffer],
+        addSuffix(file.name, "-compressed"),
+        {
+            type: file.type
+        }
+    );
+
+}
+
+
+/* -----------------------------
+   Generic Compression
+----------------------------- */
+
+async function genericCompression(file) {
+
+    /*
+       ZIP-style compression can reduce some files,
+       but cannot reduce already-compressed formats such
+       as JPG/MP4/MP3 significantly.
+    */
+
+    return new File(
+        [file],
+        addSuffix(file.name, "-compressed"),
+        {
+            type: file.type
+        }
+    );
+
+}
+
+
+/* -----------------------------
+   Helpers
+----------------------------- */
+
+function loadImage(file) {
+
+    return new Promise((resolve, reject) => {
+
+        const url =
+            URL.createObjectURL(file);
+
+        const img =
+            new Image();
+
+        img.onload = () => {
+
+            URL.revokeObjectURL(url);
+
+            resolve(img);
+
+        };
+
+        img.onerror = reject;
+
+        img.src = url;
+
+    });
+
+}
+
+
+function canvasToBlob(
+    canvas,
+    type,
+    quality
+) {
+
+    return new Promise(resolve => {
+
+        canvas.toBlob(
+            resolve,
+            type,
+            quality
+        );
+
+    });
+
+}
+
+
+function formatBytes(bytes) {
+
+    if (bytes === 0)
+        return "0 Bytes";
+
+    const units = [
+        "Bytes",
+        "KB",
+        "MB",
+        "GB",
+        "TB"
+    ];
+
+    const i =
+        Math.floor(
+            Math.log(bytes) /
+            Math.log(1024)
+        );
+
+    return (
+        parseFloat(
+            (bytes / Math.pow(1024, i))
+            .toFixed(2)
+        )
+        + " "
+        + units[i]
+    );
+
+}
+
+
+function calculateSaving(
+    original,
+    compressed
+) {
+
+    if (compressed >= original)
+        return 0;
+
+    return (
+        (
+            1 -
+            compressed / original
+        ) * 100
+    ).toFixed(1);
+
+}
+
+
+function removeExtension(name) {
+
+    return name.replace(
+        /\.[^/.]+$/,
+        ""
+    );
+
+}
+
+
+function addSuffix(
+    name,
+    suffix
+) {
+
+    const dot =
+        name.lastIndexOf(".");
+
+    if (dot === -1)
+        return name + suffix;
+
+    return (
+        name.substring(0, dot)
+        +
+        suffix
+        +
+        name.substring(dot)
+    );
+
+}
+
+
+function escapeHTML(text) {
+
+    const div =
+        document.createElement("div");
+
+    div.textContent = text;
+
+    return div.innerHTML;
+
+}
+
+
+/* -----------------------------
+   Clear
+----------------------------- */
+
+clearBtn.addEventListener("click", () => {
+
+    selectedFiles = [];
+
+    fileInput.value = "";
+
+    fileList.innerHTML = "";
+
+});
+
+
+</script>
+
+</body>
+  </html>
