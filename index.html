@@ -91,14 +91,13 @@ button:disabled{opacity:.55;cursor:not-allowed}.files{margin-top:16px}.item{bord
 
 <section class="card">
 <div class="note">
-<b>Privacy:</b> your selected files are processed locally in the browser. FFmpeg/PDF.js engine files are downloaded from public CDNs, but your selected file bytes are not sent to those CDNs.
+<b>Privacy:</b> your selected files are processed locally in the browser. Your selected file bytes stay in this browser. The FFmpeg engine is loaded for processing; your files are not uploaded.
 </div>
 </section>
 </main>
 
 <!-- Libraries used only for in-browser processing -->
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.min.js"></script>
+<script src="./ffmpeg.min.js"></script>
 <script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
 
 <script type="module">
@@ -164,12 +163,21 @@ function downloadBlob(blob,name,i){
  box.appendChild(a);
 }
 
+async function toBlobURL(url, mime){
+ const r=await fetch(url,{mode:"cors",cache:"force-cache"});
+ if(!r.ok) throw new Error("Could not load FFmpeg engine: "+r.status);
+ const b=await r.blob();
+ return URL.createObjectURL(new Blob([b],{type:mime}));
+}
+async function fetchFile(file){
+ return new Uint8Array(await file.arrayBuffer());
+}
 async function loadFFmpeg(){
  if(ffmpegReady)return ffmpeg;
  if(ffmpegLoading)return ffmpegLoading;
- if(!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg) throw new Error("FFmpeg library did not load. Check internet connection and reload.");
+ if(!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg)
+   throw new Error("Local FFmpeg worker is missing. Upload ffmpeg.min.js and 814.ffmpeg.js beside index.html.");
  const {FFmpeg}=window.FFmpegWASM;
- const {toBlobURL}=window.FFmpegUtil;
  ffmpeg=new FFmpeg();
  ffmpeg.on("log",({message})=>{ if(message && /error|invalid|failed/i.test(message)) console.warn("[FFmpeg]",message); });
  ffmpegLoading=(async()=>{
@@ -245,8 +253,7 @@ function mediaBitrate(goal,duration,container,kind){
 
 async function ffmpegTranscode(file,i,kind){
  const ff=await loadFFmpeg();
- const {fetchFile}=window.FFmpegUtil;
- const inputName="input_"+Date.now()+"."+ext(file.name);
+  const inputName="input_"+Date.now()+"."+ext(file.name);
  const outputExt=kind==="video"?vidfmt.value:audfmt.value;
  const outputName="output_"+Date.now()+"."+outputExt;
  await ff.writeFile(inputName,await fetchFile(file));
@@ -368,4 +375,5 @@ render();
 })();
 </script>
 </body>
-</html>
+  </html>
+  
