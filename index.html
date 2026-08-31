@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<title>DD Compressor — Privacy First</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f1f5f9;color:#0f172a}
+header{background:#0f172a;color:#fff;padding:24px 16px;text-align:center}header h1{margin:0 0 7px;font-size:28px}header p{margin:0;color:#cbd5e1}
+main{max-width:1050px;margin:auto;padding:18px}.card{background:#fff;border-radius:18px;padding:20px;margin:16px 0;box-shadow:0 8px 28px rgba(15,23,42,.08)}
+.drop{border:2px dashed #64748b;border-radius:16px;padding:38px 16px;text-align:center;cursor:pointer}.drop.drag{border-color:#2563eb;background:#eff6ff}.drop h2{margin:0 0 8px}.muted{color:#64748b}
+input[type=file]{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:16px}
+label{font-weight:700;font-size:14px;display:block;margin-bottom:7px}select,input[type=number]{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-size:15px}
+input[type=range]{width:100%}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button,.download{border:0;border-radius:10px;padding:12px 16px;font-weight:800;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block}
+.primary{background:#2563eb;color:#fff}.secondary{background:#e2e8f0;color:#0f172a}.download{background:#16a34a;color:#fff;margin-top:10px}
+button:disabled{opacity:.55;cursor:not-allowed}.files{margin-top:16px}.item{border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin:10px 0}
+.name{font-weight:800;word-break:break-word}.info{font-size:13px;color:#64748b;margin-top:4px}.bar{height:8px;background:#e2e8f0;border-radius:10px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;width:0;background:#2563eb;transition:width .25s}.status{font-size:13px;margin-top:8px;line-height:1.4}
+.note{padding:13px;border-radius:12px;background:#eff6ff;color:#1e3a8a;line-height:1.5;font-size:14px}.warn{background:#fff7ed;color:#9a3412}.ok{background:#ecfdf5;color:#166534}
+.small{font-size:12px;color:#64748b}.hidden{display:none}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #cbd5e1;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:600px){main{padding:10px}.card{padding:16px}header h1{font-size:24px}}
+</style>
+</head>
+<body>
+<header>
+<h1>⚡ DD Compressor</h1>
+<p>Fast, private, browser-only file compression</p>
+</header>
+
+<main>
+<section class="card">
+<div class="drop" id="drop">
+<h2>📁 Select files</h2>
+<p class="muted">JPG • PNG • WebP • PDF • MP3 • WAV • M4A • MP4 • MOV • WebM • AVI • MKV • and more</p>
+<p class="small">Files stay in this browser. They are not uploaded to a compression server.</p>
+<input id="files" type="file" multiple>
+</div>
+<div id="list" class="files"></div>
+</section>
+
+<section class="card">
+<h2 style="margin-top:0">Compression settings</h2>
+<div class="grid">
+<div>
+<label>Target size</label>
+<input id="target" type="number" min="0.01" step="0.01" value="1">
+</div>
+<div>
+<label>Unit</label>
+<select id="unit"><option>KB</option><option selected>MB</option><option>GB</option><option>TB</option></select>
+</div>
+<div>
+<label>Quality</label>
+<input id="quality" type="range" min="5" max="100" value="90">
+<div><b id="qv">90</b>% — higher = better quality</div>
+</div>
+<div>
+<label>Image output</label>
+<select id="imgfmt">
+<option value="auto" selected>Smart WebP</option>
+<option value="webp">WebP</option>
+<option value="jpeg">JPEG</option>
+<option value="png">PNG (lossless)</option>
+</select>
+</div>
+<div>
+<label>Video output</label>
+<select id="vidfmt">
+<option value="mp4" selected>MP4 (H.264 + AAC)</option>
+<option value="webm">WebM (VP9 + Opus)</option>
+</select>
+</div>
+<div>
+<label>Audio output</label>
+<select id="audfmt">
+<option value="mp3" selected>MP3</option>
+<option value="ogg">OGG/Opus</option>
+<option value="wav">WAV (lossless)</option>
+</select>
+</div>
+</div>
+<div class="row" style="margin-top:18px">
+<button class="primary" id="compress">🚀 Compress all</button>
+<button class="secondary" id="clear">Clear</button>
+</div>
+<div class="note" style="margin-top:14px">
+<b>Important:</b> target size is a goal, not a mathematical guarantee. Already-compressed files can have a hard minimum size. The app will keep trying smaller dimensions/bitrates and will never claim a smaller file when it isn't actually smaller.
+</div>
+</section>
+
+<section class="card">
+<div class="note">
+<b>Privacy:</b> your selected files are processed locally in the browser. FFmpeg/PDF.js engine files are downloaded from public CDNs, but your selected file bytes are not sent to those CDNs.
+</div>
+</section>
+</main>
+
+<!-- Libraries used only for in-browser processing -->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/dist/umd/index.min.js"></script>
+<script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
+
+<script type="module">
+import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.mjs";
+window.pdfjsLib = pdfjsLib;
+</script>
+
+<script>
+(() => {
+"use strict";
+
+const $ = id => document.getElementById(id);
+const drop=$("drop"), input=$("files"), list=$("list");
+const target=$("target"), unit=$("unit"), quality=$("quality"), qv=$("qv");
+const imgfmt=$("imgfmt"), vidfmt=$("vidfmt"), audfmt=$("audfmt");
+const compress=$("compress"), clear=$("clear");
+
+let files=[];
+let ffmpeg=null, ffmpegReady=false, ffmpegLoading=null;
+const objectUrls=[];
+
+quality.oninput=()=>qv.textContent=quality.value;
+drop.onclick=()=>input.click();
+input.onchange=()=>{addFiles([...input.files]);input.value="";};
+["dragenter","dragover"].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add("drag")}));
+["dragleave","drop"].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove("drag")}));
+drop.addEventListener("drop",e=>addFiles([...e.dataTransfer.files]));
+clear.onclick=()=>{files=[];list.innerHTML="";};
+
+function addFiles(fs){ files.push(...fs); render(); }
+function render(){
+ list.innerHTML="";
+ files.forEach((f,i)=>{
+   const d=document.createElement("div"); d.className="item";
+   d.innerHTML=`<div class="name">${esc(f.name)}</div>
+   <div class="info">${bytes(f.size)} • ${esc(f.type||"unknown")}</div>
+   <div class="bar"><i id="b${i}"></i></div>
+   <div class="status" id="s${i}">Waiting…</div><div id="d${i}"></div>`;
+   list.appendChild(d);
+ });
+}
+function setStatus(i,t,p){
+ const b=$("b"+i),s=$("s"+i); if(b)b.style.width=Math.max(0,Math.min(100,p||0))+"%"; if(s)s.innerHTML=t;
+}
+function bytes(n){
+ if(!Number.isFinite(n))return "0 B";
+ const u=["B","KB","MB","GB","TB"],k=1024;
+ let i=n?Math.floor(Math.log(n)/Math.log(k)):0;i=Math.min(i,u.length-1);
+ return (n/Math.pow(k,i)).toFixed(i?2:0)+" "+u[i];
+}
+function targetBytes(){return Number(target.value)*({KB:1024,MB:1024**2,GB:1024**3,TB:1024**4}[unit.value]||1024**2);}
+function baseName(n){return n.replace(/\.[^.]+$/,"");}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function ext(n){let x=n.toLowerCase().split(".").pop();return x||"";}
+function downloadBlob(blob,name,i){
+ const old=objectUrls[i]; if(old)URL.revokeObjectURL(old);
+ const url=URL.createObjectURL(blob); objectUrls[i]=url;
+ const box=$("d"+i); box.innerHTML="";
+ const a=document.createElement("a");a.className="download";a.href=url;a.download=name;a.textContent="⬇ Download";
+ a.addEventListener("click",()=>setTimeout(()=>URL.revokeObjectURL(url),30000));
+ box.appendChild(a);
+}
+
+async function loadFFmpeg(){
+ if(ffmpegReady)return ffmpeg;
+ if(ffmpegLoading)return ffmpegLoading;
+ if(!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg) throw new Error("FFmpeg library did not load. Check internet connection and reload.");
+ const {FFmpeg}=window.FFmpegWASM;
+ const {toBlobURL}=window.FFmpegUtil;
+ ffmpeg=new FFmpeg();
+ ffmpeg.on("log",({message})=>{ if(message && /error|invalid|failed/i.test(message)) console.warn("[FFmpeg]",message); });
+ ffmpegLoading=(async()=>{
+   const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
+   await ffmpeg.load({
+     coreURL:await toBlobURL(base+"/ffmpeg-core.js","text/javascript"),
+     wasmURL:await toBlobURL(base+"/ffmpeg-core.wasm","application/wasm")
+   });
+   ffmpegReady=true; return ffmpeg;
+ })();
+ return ffmpegLoading;
+}
+
+function imageEl(file){
+ return new Promise((resolve,reject)=>{
+   const u=URL.createObjectURL(file),im=new Image();
+   im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error("Image could not be decoded."))};im.src=u;
+ });
+}
+function canvasBlob(c,type,q){return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error("Browser could not encode this image.")),type,q));}
+
+async function compressImage(file,i){
+ const im=await imageEl(file);
+ const originalPixels=im.naturalWidth*im.naturalHeight;
+ const maxPixels=24e6;
+ let scale=Math.min(1,Math.sqrt(maxPixels/originalPixels));
+ let w=Math.max(1,Math.round(im.naturalWidth*scale)), h=Math.max(1,Math.round(im.naturalHeight*scale));
+ const goal=targetBytes(), q0=Number(quality.value)/100;
+ let fmt=imgfmt.value;
+ if(fmt==="auto")fmt="webp";
+ if(fmt==="jpeg" && file.type==="image/png" && im.naturalWidth){} 
+ if(fmt==="png"){
+   const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(im,0,0,w,h);
+   const b=await canvasBlob(c,"image/png");
+   if(b.size<=goal || goal<=0) return new File([b],baseName(file.name)+".png",{type:"image/png"});
+   // Lossless PNG cannot be forced below an arbitrary target. Fall through to WebP for a real reduction.
+   fmt="webp";
+ }
+ const mime=fmt==="jpeg"?"image/jpeg":"image/webp";
+ let best=null;
+ for(let dimensionTry=0;dimensionTry<12;dimensionTry++){
+   const c=document.createElement("canvas");c.width=w;c.height=h;
+   c.getContext("2d").drawImage(im,0,0,w,h);
+   let lo=0.05,hi=q0,b=null;
+   for(let k=0;k<9;k++){
+     const q=(lo+hi)/2, candidate=await canvasBlob(c,mime,q);
+     if(!best || Math.abs(candidate.size-goal)<Math.abs(best.size-goal))best=candidate;
+     if(candidate.size>goal){hi=q;}else{b=candidate;lo=q;}
+   }
+   if(b && b.size<=goal)best=b;
+   if(best && best.size<=goal)break;
+   // If target still missed, reduce pixels. This fixes the old "stuck around 400 KB" behavior.
+   const factor=best && best.size>goal ? Math.max(.45,Math.sqrt(goal/best.size)*.92) : .8;
+   w=Math.max(64,Math.floor(w*factor)); h=Math.max(64,Math.floor(h*factor));
+   if(w===64 && h===64)break;
+ }
+ const outExt=fmt==="jpeg"?"jpg":"webp";
+ return new File([best],baseName(file.name)+"-compressed."+outExt,{type:mime});
+}
+
+function mediaDuration(file){
+ return new Promise((resolve,reject)=>{
+   const u=URL.createObjectURL(file), el=document.createElement(file.type.startsWith("video/")?"video":"audio");
+   el.preload="metadata";el.onloadedmetadata=()=>{URL.revokeObjectURL(u);resolve(el.duration)};el.onerror=()=>{URL.revokeObjectURL(u);reject(new Error("Media metadata could not be read."))};el.src=u;
+ });
+}
+
+function mediaBitrate(goal,duration,container,kind){
+ const reserve=kind==="video"?128000:0;
+ const bps=Math.max(kind==="video"?120000:24000, Math.floor((goal*8/duration)-reserve));
+ return Math.min(kind==="video"?8000000:320000,bps);
+}
+
+async function ffmpegTranscode(file,i,kind){
+ const ff=await loadFFmpeg();
+ const {fetchFile}=window.FFmpegUtil;
+ const inputName="input_"+Date.now()+"."+ext(file.name);
+ const outputExt=kind==="video"?vidfmt.value:audfmt.value;
+ const outputName="output_"+Date.now()+"."+outputExt;
+ await ff.writeFile(inputName,await fetchFile(file));
+ let duration=await mediaDuration(file);
+ if(!Number.isFinite(duration)||duration<=0)duration=60;
+ const goal=targetBytes();
+ const attempts=[];
+ for(let n=0;n<5;n++){
+   let br=mediaBitrate(goal,duration,outputExt,kind);
+   // progressively lower bitrate if the previous result missed target
+   if(n>0)br=Math.max(kind==="video"?60000:16000,Math.floor(br*Math.pow(.65,n)));
+   const q=Math.max(1,Math.min(100,Number(quality.value)));
+   const crf=Math.round(35-(q*.22)); // 13..34
+   const args=["-i",inputName,"-map_metadata","-1"];
+   if(kind==="video"){
+     if(outputExt==="webm")args.push("-c:v","libvpx-vp9","-b:v",String(Math.max(60000,br)),"-crf",String(Math.max(20,Math.min(45,crf))),"-c:a","libopus","-b:a","96k","-deadline","good","-cpu-used","4");
+     else args.push("-c:v","libx264","-preset","veryfast","-b:v",String(Math.max(60000,br)),"-maxrate",String(Math.max(60000,Math.floor(br*1.15))),"-bufsize",String(Math.max(120000,Math.floor(br*2))),"-pix_fmt","yuv420p","-c:a","aac","-b:a","96k","-movflags","+faststart");
+   }else{
+     if(outputExt==="ogg")args.push("-c:a","libopus","-b:a",String(Math.max(16000,Math.min(128000,br))));
+     else if(outputExt==="wav")args.push("-c:a","pcm_s16le");
+     else args.push("-c:a","libmp3lame","-b:a",String(Math.max(24000,Math.min(320000,br))));
+   }
+   args.push(outputName);
+   setStatus(i,`<span class="spinner"></span>FFmpeg pass ${n+1}/5…`,30+n*12);
+   try{
+     await ff.deleteFile(outputName).catch(()=>{});
+     await ff.exec(args);
+     const data=await ff.readFile(outputName);
+     const blob=new Blob([data.buffer],{type:kind==="video"?(outputExt==="webm"?"video/webm":"video/mp4"):(outputExt==="ogg"?"audio/ogg":outputExt==="wav"?"audio/wav":"audio/mpeg")});
+     attempts.push(blob);
+     if(blob.size<=goal)break;
+   }catch(e){console.error(e);break;}
+ }
+ await ff.deleteFile(inputName).catch(()=>{});await ff.deleteFile(outputName).catch(()=>{});
+ if(!attempts.length)throw new Error("FFmpeg could not encode this file/codec.");
+ attempts.sort((a,b)=>Math.abs(a.size-goal)-Math.abs(b.size-goal));
+ const b=attempts[0];
+ return new File([b],baseName(file.name)+"-compressed."+outputExt,{type:b.type});
+}
+
+async function compressPdf(file,i){
+ if(!window.pdfjsLib)throw new Error("PDF engine is still loading. Please wait 2 seconds and try again.");
+ const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+ const {jsPDF}=window.jspdf||{};
+ if(!jsPDF)throw new Error("PDF generator did not load.");
+ const goal=targetBytes();
+ let scale=Math.min(1.5,Math.max(.65,Number(quality.value)/70));
+ let best=null;
+ for(let pass=0;pass<4;pass++){
+   let doc=null;
+   for(let p=1;p<=pdf.numPages;p++){
+     setStatus(i,`<span class="spinner"></span>PDF page ${p}/${pdf.numPages}…`,20+(p/pdf.numPages)*55);
+     const page=await pdf.getPage(p);
+     const vp=page.getViewport({scale});
+     const c=document.createElement("canvas");c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
+     await page.render({canvasContext:c.getContext("2d",{alpha:false}),viewport:vp,background:"white"}).promise;
+     const q=Math.max(.35,Math.min(.95,Number(quality.value)/100));
+     const jpg=await canvasBlob(c,"image/jpeg",q);
+     const img=await blobDataURL(jpg);
+     const w=210,h=(vp.height/vp.width)*210;
+     if(!doc)doc=new jsPDF({orientation:w>h?"landscape":"portrait",unit:"mm",format:[w,h],compress:true});
+     else doc.addPage([w,h],w>h?"landscape":"portrait");
+     doc.addImage(img,"JPEG",0,0,w,h,undefined,"FAST");
+   }
+   const out=doc.output("blob");
+   if(!best||out.size<best.size)best=out;
+   if(out.size<=goal)break;
+   scale=Math.max(.35,scale*.72);
+   if(scale<=.36)break;
+ }
+ return new File([best],baseName(file.name)+"-compressed.pdf",{type:"application/pdf"});
+}
+function blobDataURL(blob){return new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result);f.onerror=j;f.readAsDataURL(blob);});}
+
+async function gzipText(file){
+ if(!("CompressionStream" in window))throw new Error("Browser does not support GZIP.");
+ const data=await file.arrayBuffer(), cs=new CompressionStream("gzip");
+ const stream=new Blob([data]).stream().pipeThrough(cs), blob=await new Response(stream).blob();
+ return new File([blob],file.name+".gz",{type:"application/gzip"});
+}
+
+async function process(file,i){
+ const e=ext(file.name);
+ setStatus(i,"Reading…",5);
+ if(file.type.startsWith("image/")||["jpg","jpeg","png","webp","bmp","gif","avif"].includes(e))return compressImage(file,i);
+ if(file.type==="application/pdf"||e==="pdf")return compressPdf(file,i);
+ if(file.type.startsWith("video/")||["mp4","mov","webm","avi","mkv","m4v","mpeg","mpg","3gp","ogv"].includes(e))return ffmpegTranscode(file,i,"video");
+ if(file.type.startsWith("audio/")||["mp3","wav","m4a","aac","ogg","opus","flac","wma"].includes(e))return ffmpegTranscode(file,i,"audio");
+ if(file.type.startsWith("text/")||["txt","csv","json","xml","html","css","js","svg"].includes(e))return gzipText(file);
+ throw new Error("This format has no safe universal compressor in a browser. It was not modified.");
+}
+
+compress.onclick=async()=>{
+ if(!files.length){alert("Select at least one file.");return;}
+ compress.disabled=true;clear.disabled=true;
+ try{
+   for(let i=0;i<files.length;i++){
+     const f=files[i];
+     try{
+       setStatus(i,"Starting…",2);
+       const out=await process(f,i);
+       const smaller=out.size<f.size;
+       const pct=((1-out.size/f.size)*100);
+       if(!smaller){
+         setStatus(i,`⚠️ Best result is ${bytes(out.size)} (original ${bytes(f.size)}). This file cannot be safely made smaller with this method.`,100);
+       }else{
+         setStatus(i,`✅ ${bytes(f.size)} → <b>${bytes(out.size)}</b> • saved ${pct.toFixed(1)}%`,100);
+       }
+       downloadBlob(out,out.name,i);
+     }catch(e){
+       console.error(e);
+       setStatus(i,`❌ ${esc(e.message||"Compression failed.")}`,0);
+     }
+   }
+ }finally{compress.disabled=false;clear.disabled=false;}
+};
+
+render();
+})();
+</script>
+</body>
+</html>
