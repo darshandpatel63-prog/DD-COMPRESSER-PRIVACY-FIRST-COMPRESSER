@@ -1,379 +1,3354 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta charset="UTF-8">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
 <meta name="theme-color" content="#0f172a">
-<title>DD Compressor — Privacy First</title>
+
+<title>DD Compressor - Privacy First</title>
+
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f1f5f9;color:#0f172a}
-header{background:#0f172a;color:#fff;padding:24px 16px;text-align:center}header h1{margin:0 0 7px;font-size:28px}header p{margin:0;color:#cbd5e1}
-main{max-width:1050px;margin:auto;padding:18px}.card{background:#fff;border-radius:18px;padding:20px;margin:16px 0;box-shadow:0 8px 28px rgba(15,23,42,.08)}
-.drop{border:2px dashed #64748b;border-radius:16px;padding:38px 16px;text-align:center;cursor:pointer}.drop.drag{border-color:#2563eb;background:#eff6ff}.drop h2{margin:0 0 8px}.muted{color:#64748b}
-input[type=file]{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:16px}
-label{font-weight:700;font-size:14px;display:block;margin-bottom:7px}select,input[type=number]{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;font-size:15px}
-input[type=range]{width:100%}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-button,.download{border:0;border-radius:10px;padding:12px 16px;font-weight:800;font-size:15px;cursor:pointer;text-decoration:none;display:inline-block}
-.primary{background:#2563eb;color:#fff}.secondary{background:#e2e8f0;color:#0f172a}.download{background:#16a34a;color:#fff;margin-top:10px}
-button:disabled{opacity:.55;cursor:not-allowed}.files{margin-top:16px}.item{border:1px solid #e2e8f0;border-radius:14px;padding:14px;margin:10px 0}
-.name{font-weight:800;word-break:break-word}.info{font-size:13px;color:#64748b;margin-top:4px}.bar{height:8px;background:#e2e8f0;border-radius:10px;overflow:hidden;margin-top:10px}.bar i{display:block;height:100%;width:0;background:#2563eb;transition:width .25s}.status{font-size:13px;margin-top:8px;line-height:1.4}
-.note{padding:13px;border-radius:12px;background:#eff6ff;color:#1e3a8a;line-height:1.5;font-size:14px}.warn{background:#fff7ed;color:#9a3412}.ok{background:#ecfdf5;color:#166534}
-.small{font-size:12px;color:#64748b}.hidden{display:none}.spinner{display:inline-block;width:14px;height:14px;border:2px solid #cbd5e1;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}@keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:600px){main{padding:10px}.card{padding:16px}header h1{font-size:24px}}
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+    margin:0;
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    background:#f1f5f9;
+    color:#0f172a;
+}
+
+/* HEADER */
+
+header{
+    background:#0f172a;
+    color:white;
+    padding:22px 15px;
+    text-align:center;
+}
+
+header h1{
+    margin:0;
+    font-size:27px;
+}
+
+header p{
+    margin:7px 0 0;
+    color:#cbd5e1;
+    font-size:14px;
+}
+
+/* MAIN */
+
+.container{
+    width:100%;
+    max-width:1050px;
+    margin:auto;
+    padding:16px;
+}
+
+/* CARD */
+
+.card{
+    background:white;
+    border-radius:18px;
+    padding:20px;
+    margin-bottom:16px;
+
+    box-shadow:
+        0 8px 30px
+        rgba(0,0,0,.07);
+}
+
+/* DROP */
+
+.drop-zone{
+    border:2px dashed #64748b;
+    border-radius:16px;
+    padding:40px 15px;
+    text-align:center;
+    cursor:pointer;
+    transition:.2s;
+}
+
+.drop-zone:hover,
+.drop-zone.drag{
+    border-color:#2563eb;
+    background:#eff6ff;
+}
+
+.drop-zone h2{
+    margin:0 0 8px;
+}
+
+.drop-zone p{
+    margin:5px 0;
+    color:#64748b;
+    font-size:13px;
+}
+
+input[type=file]{
+    display:none;
+}
+
+/* FILE */
+
+.file-item{
+    border:1px solid #e2e8f0;
+    border-radius:14px;
+    padding:14px;
+    margin-top:12px;
+}
+
+.file-name{
+    font-weight:bold;
+    word-break:break-word;
+}
+
+.file-info{
+    margin-top:5px;
+    color:#64748b;
+    font-size:13px;
+}
+
+.progress{
+    height:8px;
+    background:#e2e8f0;
+    border-radius:20px;
+    overflow:hidden;
+    margin-top:10px;
+}
+
+.progress-bar{
+    width:0%;
+    height:100%;
+    background:#2563eb;
+    transition:.3s;
+}
+
+.status{
+    font-size:13px;
+    margin-top:8px;
+    line-height:1.5;
+}
+
+/* SETTINGS */
+
+.settings-grid{
+    display:grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fit,
+            minmax(190px,1fr)
+        );
+
+    gap:14px;
+
+    margin-top:15px;
+}
+
+label{
+    display:block;
+    font-size:14px;
+    font-weight:bold;
+    margin-bottom:7px;
+}
+
+input[type=number],
+select{
+    width:100%;
+    padding:11px;
+
+    border:1px solid #cbd5e1;
+
+    border-radius:10px;
+
+    background:white;
+
+    font-size:15px;
+}
+
+input[type=range]{
+    width:100%;
+}
+
+/* BUTTONS */
+
+.buttons{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:18px;
+}
+
+button,
+.download{
+    border:0;
+    border-radius:10px;
+
+    padding:12px 17px;
+
+    font-size:15px;
+    font-weight:bold;
+
+    cursor:pointer;
+
+    text-decoration:none;
+}
+
+.primary{
+    background:#2563eb;
+    color:white;
+}
+
+.primary:hover{
+    background:#1d4ed8;
+}
+
+.secondary{
+    background:#e2e8f0;
+    color:#0f172a;
+}
+
+.download{
+    display:inline-block;
+    background:#16a34a;
+    color:white;
+    margin-top:10px;
+}
+
+button:disabled{
+    opacity:.55;
+}
+
+/* MESSAGE */
+
+.message{
+    padding:13px;
+    border-radius:12px;
+
+    background:#eff6ff;
+    color:#1e3a8a;
+
+    font-size:13px;
+    line-height:1.5;
+
+    margin-top:15px;
+}
+
+.warning{
+    background:#fff7ed;
+    color:#9a3412;
+}
+
+.success{
+    background:#ecfdf5;
+    color:#166534;
+}
+
+/* PRIVACY */
+
+.privacy{
+    text-align:center;
+    font-size:13px;
+    color:#475569;
+    line-height:1.6;
+}
+
+/* SPINNER */
+
+.spinner{
+    display:inline-block;
+
+    width:14px;
+    height:14px;
+
+    border:2px solid #cbd5e1;
+    border-top-color:#2563eb;
+
+    border-radius:50%;
+
+    animation:spin .8s linear infinite;
+
+    vertical-align:-2px;
+
+    margin-right:6px;
+}
+
+@keyframes spin{
+
+    to{
+        transform:rotate(360deg);
+    }
+
+}
+
+/* MOBILE */
+
+@media(max-width:600px){
+
+    header h1{
+        font-size:23px;
+    }
+
+    .container{
+        padding:10px;
+    }
+
+    .card{
+        padding:15px;
+    }
+
+    .drop-zone{
+        padding:32px 10px;
+    }
+
+}
+
 </style>
 </head>
+
+
 <body>
+
+
 <header>
+
 <h1>⚡ DD Compressor</h1>
-<p>Fast, private, browser-only file compression</p>
+
+<p>
+Fast • Private • Browser Based
+</p>
+
 </header>
 
-<main>
-<section class="card">
-<div class="drop" id="drop">
-<h2>📁 Select files</h2>
-<p class="muted">JPG • PNG • WebP • PDF • MP3 • WAV • M4A • MP4 • MOV • WebM • AVI • MKV • and more</p>
-<p class="small">Files stay in this browser. They are not uploaded to a compression server.</p>
-<input id="files" type="file" multiple>
-</div>
-<div id="list" class="files"></div>
-</section>
 
-<section class="card">
-<h2 style="margin-top:0">Compression settings</h2>
-<div class="grid">
-<div>
-<label>Target size</label>
-<input id="target" type="number" min="0.01" step="0.01" value="1">
-</div>
-<div>
-<label>Unit</label>
-<select id="unit"><option>KB</option><option selected>MB</option><option>GB</option><option>TB</option></select>
-</div>
-<div>
-<label>Quality</label>
-<input id="quality" type="range" min="5" max="100" value="90">
-<div><b id="qv">90</b>% — higher = better quality</div>
-</div>
-<div>
-<label>Image output</label>
-<select id="imgfmt">
-<option value="auto" selected>Smart WebP</option>
-<option value="webp">WebP</option>
-<option value="jpeg">JPEG</option>
-<option value="png">PNG (lossless)</option>
-</select>
-</div>
-<div>
-<label>Video output</label>
-<select id="vidfmt">
-<option value="mp4" selected>MP4 (H.264 + AAC)</option>
-<option value="webm">WebM (VP9 + Opus)</option>
-</select>
-</div>
-<div>
-<label>Audio output</label>
-<select id="audfmt">
-<option value="mp3" selected>MP3</option>
-<option value="ogg">OGG/Opus</option>
-<option value="wav">WAV (lossless)</option>
-</select>
-</div>
-</div>
-<div class="row" style="margin-top:18px">
-<button class="primary" id="compress">🚀 Compress all</button>
-<button class="secondary" id="clear">Clear</button>
-</div>
-<div class="note" style="margin-top:14px">
-<b>Important:</b> target size is a goal, not a mathematical guarantee. Already-compressed files can have a hard minimum size. The app will keep trying smaller dimensions/bitrates and will never claim a smaller file when it isn't actually smaller.
-</div>
-</section>
 
-<section class="card">
-<div class="note">
-<b>Privacy:</b> your selected files are processed locally in the browser. Your selected file bytes stay in this browser. The FFmpeg engine is loaded for processing; your files are not uploaded.
-</div>
-</section>
-</main>
+<div class="container">
 
-<!-- Libraries used only for in-browser processing -->
+
+<!-- FILE SELECT -->
+
+<div class="card">
+
+
+<div
+    class="drop-zone"
+    id="dropZone"
+>
+
+<h2>📁 Select Files</h2>
+
+<p>
+JPG • JPEG • PNG • WebP • PDF
+</p>
+
+<p>
+MP3 • WAV • M4A • AAC • OGG • FLAC
+</p>
+
+<p>
+MP4 • MOV • WebM • AVI • MKV • MPEG
+</p>
+
+<p>
+Your files stay inside your browser.
+</p>
+
+
+<input
+    id="fileInput"
+    type="file"
+    multiple
+>
+
+
+</div>
+
+
+<div id="fileList"></div>
+
+
+</div>
+
+
+
+<!-- SETTINGS -->
+
+<div class="card">
+
+
+<h2>
+Compression Settings
+</h2>
+
+
+<div class="settings-grid">
+
+
+<div>
+
+<label>
+Target Size
+</label>
+
+<input
+    id="targetSize"
+    type="number"
+    min="0.01"
+    step="0.01"
+    value="1"
+>
+
+</div>
+
+
+
+<div>
+
+<label>
+Unit
+</label>
+
+<select id="targetUnit">
+
+<option value="KB">
+KB
+</option>
+
+<option value="MB" selected>
+MB
+</option>
+
+<option value="GB">
+GB
+</option>
+
+<option value="TB">
+TB
+</option>
+
+</select>
+
+</div>
+
+
+
+<div>
+
+<label>
+Quality
+</label>
+
+<input
+    id="quality"
+    type="range"
+    min="10"
+    max="100"
+    value="90"
+>
+
+<div>
+
+<b id="qualityText">
+90
+</b>
+
+%
+
+</div>
+
+</div>
+
+
+
+<div>
+
+<label>
+Image Format
+</label>
+
+<select id="imageFormat">
+
+<option value="webp">
+WebP - Recommended
+</option>
+
+<option value="jpeg">
+JPEG
+</option>
+
+<option value="png">
+PNG
+</option>
+
+</select>
+
+</div>
+
+
+
+<div>
+
+<label>
+Video Format
+</label>
+
+<select id="videoFormat">
+
+<option value="mp4">
+MP4 - H.264 + AAC
+</option>
+
+<option value="webm">
+WebM - VP9 + Opus
+</option>
+
+</select>
+
+</div>
+
+
+
+<div>
+
+<label>
+Audio Format
+</label>
+
+<select id="audioFormat">
+
+<option value="mp3">
+MP3
+</option>
+
+<option value="ogg">
+OGG / Opus
+</option>
+
+<option value="wav">
+WAV
+</option>
+
+</select>
+
+</div>
+
+
+</div>
+
+
+
+<div class="buttons">
+
+<button
+    class="primary"
+    id="compressButton"
+>
+
+🚀 Compress All
+
+</button>
+
+
+<button
+    class="secondary"
+    id="clearButton"
+>
+
+Clear
+
+</button>
+
+</div>
+
+
+
+<div class="message warning">
+
+<b>Important:</b>
+
+Target size is a goal.
+
+The compressor automatically changes
+quality, bitrate and image resolution
+when required.
+
+If a format cannot safely become smaller,
+the original quality is not falsely claimed
+as compressed.
+
+</div>
+
+
+</div>
+
+
+
+<!-- PRIVACY -->
+
+<div class="card privacy">
+
+<h3>
+🔒 Privacy First
+</h3>
+
+<p>
+
+Your selected files are processed locally
+inside your browser.
+
+They are not uploaded to a compression
+server.
+
+No account.
+
+No database.
+
+No file storage.
+
+</p>
+
+</div>
+
+
+</div>
+
+
+
+<!--
+====================================================
+FFMPEG
+====================================================
+
+IMPORTANT:
+
+These files MUST be in the SAME folder:
+
+index.html
+ffmpeg.min.js
+814.ffmpeg.js
+
+Do NOT load ffmpeg.min.js directly from jsDelivr.
+
+====================================================
+-->
+
 <script src="./ffmpeg.min.js"></script>
-<script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
 
-<script type="module">
-import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.mjs";
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.mjs";
-window.pdfjsLib = pdfjsLib;
-</script>
+
 
 <script>
-(() => {
+
 "use strict";
 
-const $ = id => document.getElementById(id);
-const drop=$("drop"), input=$("files"), list=$("list");
-const target=$("target"), unit=$("unit"), quality=$("quality"), qv=$("qv");
-const imgfmt=$("imgfmt"), vidfmt=$("vidfmt"), audfmt=$("audfmt");
-const compress=$("compress"), clear=$("clear");
 
-let files=[];
-let ffmpeg=null, ffmpegReady=false, ffmpegLoading=null;
-const objectUrls=[];
+/* ==================================================
+   ELEMENTS
+================================================== */
 
-quality.oninput=()=>qv.textContent=quality.value;
-drop.onclick=()=>input.click();
-input.onchange=()=>{addFiles([...input.files]);input.value="";};
-["dragenter","dragover"].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.add("drag")}));
-["dragleave","drop"].forEach(e=>drop.addEventListener(e,x=>{x.preventDefault();drop.classList.remove("drag")}));
-drop.addEventListener("drop",e=>addFiles([...e.dataTransfer.files]));
-clear.onclick=()=>{files=[];list.innerHTML="";};
+const dropZone =
+    document.getElementById(
+        "dropZone"
+    );
 
-function addFiles(fs){ files.push(...fs); render(); }
-function render(){
- list.innerHTML="";
- files.forEach((f,i)=>{
-   const d=document.createElement("div"); d.className="item";
-   d.innerHTML=`<div class="name">${esc(f.name)}</div>
-   <div class="info">${bytes(f.size)} • ${esc(f.type||"unknown")}</div>
-   <div class="bar"><i id="b${i}"></i></div>
-   <div class="status" id="s${i}">Waiting…</div><div id="d${i}"></div>`;
-   list.appendChild(d);
- });
-}
-function setStatus(i,t,p){
- const b=$("b"+i),s=$("s"+i); if(b)b.style.width=Math.max(0,Math.min(100,p||0))+"%"; if(s)s.innerHTML=t;
-}
-function bytes(n){
- if(!Number.isFinite(n))return "0 B";
- const u=["B","KB","MB","GB","TB"],k=1024;
- let i=n?Math.floor(Math.log(n)/Math.log(k)):0;i=Math.min(i,u.length-1);
- return (n/Math.pow(k,i)).toFixed(i?2:0)+" "+u[i];
-}
-function targetBytes(){return Number(target.value)*({KB:1024,MB:1024**2,GB:1024**3,TB:1024**4}[unit.value]||1024**2);}
-function baseName(n){return n.replace(/\.[^.]+$/,"");}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-function ext(n){let x=n.toLowerCase().split(".").pop();return x||"";}
-function downloadBlob(blob,name,i){
- const old=objectUrls[i]; if(old)URL.revokeObjectURL(old);
- const url=URL.createObjectURL(blob); objectUrls[i]=url;
- const box=$("d"+i); box.innerHTML="";
- const a=document.createElement("a");a.className="download";a.href=url;a.download=name;a.textContent="⬇ Download";
- a.addEventListener("click",()=>setTimeout(()=>URL.revokeObjectURL(url),30000));
- box.appendChild(a);
+const fileInput =
+    document.getElementById(
+        "fileInput"
+    );
+
+const fileList =
+    document.getElementById(
+        "fileList"
+    );
+
+const compressButton =
+    document.getElementById(
+        "compressButton"
+    );
+
+const clearButton =
+    document.getElementById(
+        "clearButton"
+    );
+
+const targetSize =
+    document.getElementById(
+        "targetSize"
+    );
+
+const targetUnit =
+    document.getElementById(
+        "targetUnit"
+    );
+
+const quality =
+    document.getElementById(
+        "quality"
+    );
+
+const qualityText =
+    document.getElementById(
+        "qualityText"
+    );
+
+const imageFormat =
+    document.getElementById(
+        "imageFormat"
+    );
+
+const videoFormat =
+    document.getElementById(
+        "videoFormat"
+    );
+
+const audioFormat =
+    document.getElementById(
+        "audioFormat"
+    );
+
+
+let selectedFiles = [];
+
+let ffmpeg = null;
+
+let ffmpegLoaded = false;
+
+let ffmpegLoading = null;
+
+
+/* ==================================================
+   QUALITY
+================================================== */
+
+quality.addEventListener(
+    "input",
+    () => {
+
+        qualityText.textContent =
+            quality.value;
+
+    }
+);
+
+
+/* ==================================================
+   FILE PICKER
+================================================== */
+
+dropZone.addEventListener(
+    "click",
+    () => {
+
+        fileInput.click();
+
+    }
+);
+
+
+fileInput.addEventListener(
+    "change",
+    () => {
+
+        addFiles(
+            Array.from(
+                fileInput.files
+            )
+        );
+
+        fileInput.value = "";
+
+    }
+);
+
+
+/* ==================================================
+   DRAG DROP
+================================================== */
+
+dropZone.addEventListener(
+    "dragover",
+    event => {
+
+        event.preventDefault();
+
+        dropZone.classList.add(
+            "drag"
+        );
+
+    }
+);
+
+
+dropZone.addEventListener(
+    "dragleave",
+    () => {
+
+        dropZone.classList.remove(
+            "drag"
+        );
+
+    }
+);
+
+
+dropZone.addEventListener(
+    "drop",
+    event => {
+
+        event.preventDefault();
+
+        dropZone.classList.remove(
+            "drag"
+        );
+
+        addFiles(
+            Array.from(
+                event.dataTransfer.files
+            )
+        );
+
+    }
+);
+
+
+/* ==================================================
+   ADD FILES
+================================================== */
+
+function addFiles(files){
+
+    selectedFiles.push(
+        ...files
+    );
+
+    renderFiles();
+
 }
 
-async function toBlobURL(url, mime){
- const r=await fetch(url,{mode:"cors",cache:"force-cache"});
- if(!r.ok) throw new Error("Could not load FFmpeg engine: "+r.status);
- const b=await r.blob();
- return URL.createObjectURL(new Blob([b],{type:mime}));
+
+/* ==================================================
+   RENDER
+================================================== */
+
+function renderFiles(){
+
+    fileList.innerHTML = "";
+
+    selectedFiles.forEach(
+        (file,index) => {
+
+            const item =
+                document.createElement(
+                    "div"
+                );
+
+            item.className =
+                "file-item";
+
+
+            item.innerHTML = `
+
+                <div class="file-name">
+
+                    ${escapeHTML(
+                        file.name
+                    )}
+
+                </div>
+
+
+                <div class="file-info">
+
+                    ${formatBytes(
+                        file.size
+                    )}
+
+                    •
+
+                    ${escapeHTML(
+                        file.type ||
+                        "Unknown format"
+                    )}
+
+                </div>
+
+
+                <div class="progress">
+
+                    <div
+                        class="progress-bar"
+                        id="progress-${index}"
+                    ></div>
+
+                </div>
+
+
+                <div
+                    class="status"
+                    id="status-${index}"
+                >
+
+                    Waiting...
+
+                </div>
+
+
+                <div
+                    id="download-${index}"
+                ></div>
+
+            `;
+
+
+            fileList.appendChild(
+                item
+            );
+
+        }
+    );
+
 }
-async function fetchFile(file){
- return new Uint8Array(await file.arrayBuffer());
+
+
+/* ==================================================
+   STATUS
+================================================== */
+
+function status(
+    index,
+    message,
+    progress
+){
+
+    const bar =
+        document.getElementById(
+            "progress-" + index
+        );
+
+    const text =
+        document.getElementById(
+            "status-" + index
+        );
+
+
+    if(bar){
+
+        bar.style.width =
+            Math.max(
+                0,
+                Math.min(
+                    100,
+                    progress
+                )
+            ) + "%";
+
+    }
+
+
+    if(text){
+
+        text.innerHTML =
+            message;
+
+    }
+
 }
+
+
+/* ==================================================
+   TARGET BYTES
+================================================== */
+
+function getTargetBytes(){
+
+    const value =
+        Number(
+            targetSize.value
+        );
+
+
+    const multipliers = {
+
+        KB:1024,
+
+        MB:1024 * 1024,
+
+        GB:1024 * 1024 * 1024,
+
+        TB:1024 * 1024 * 1024 * 1024
+
+    };
+
+
+    return value *
+        (
+            multipliers[
+                targetUnit.value
+            ] || 1024
+        );
+
+}
+
+
+/* ==================================================
+   FORMAT BYTES
+================================================== */
+
+function formatBytes(bytes){
+
+    if(
+        !Number.isFinite(bytes)
+        ||
+        bytes <= 0
+    ){
+
+        return "0 B";
+
+    }
+
+
+    const units = [
+        "B",
+        "KB",
+        "MB",
+        "GB",
+        "TB"
+    ];
+
+
+    const i =
+        Math.min(
+            units.length - 1,
+            Math.floor(
+                Math.log(bytes) /
+                Math.log(1024)
+            )
+        );
+
+
+    return (
+        bytes /
+        Math.pow(1024,i)
+    ).toFixed(
+        i === 0 ? 0 : 2
+    )
+    + " "
+    + units[i];
+
+}
+
+
+/* ==================================================
+   ESCAPE
+================================================== */
+
+function escapeHTML(text){
+
+    return String(text)
+        .replace(
+            /[&<>"']/g,
+            character => {
+
+                return {
+
+                    "&":"&amp;",
+
+                    "<":"&lt;",
+
+                    ">":"&gt;",
+
+                    '"':"&quot;",
+
+                    "'":"&#039;"
+
+                }[character];
+
+            }
+        );
+
+}
+
+
+/* ==================================================
+   BASE NAME
+================================================== */
+
+function baseName(name){
+
+    return name.replace(
+        /\.[^/.]+$/,
+        ""
+    );
+
+}
+
+
+/* ==================================================
+   IMAGE LOADER
+================================================== */
+
+function loadImage(file){
+
+    return new Promise(
+        (resolve,reject) => {
+
+            const url =
+                URL.createObjectURL(
+                    file
+                );
+
+
+            const image =
+                new Image();
+
+
+            image.onload = () => {
+
+                URL.revokeObjectURL(
+                    url
+                );
+
+                resolve(image);
+
+            };
+
+
+            image.onerror = () => {
+
+                URL.revokeObjectURL(
+                    url
+                );
+
+                reject(
+                    new Error(
+                        "Image cannot be opened."
+                    )
+                );
+
+            };
+
+
+            image.src = url;
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   CANVAS BLOB
+================================================== */
+
+function canvasToBlob(
+    canvas,
+    type,
+    quality
+){
+
+    return new Promise(
+        (resolve,reject) => {
+
+            canvas.toBlob(
+                blob => {
+
+                    if(blob){
+
+                        resolve(blob);
+
+                    }else{
+
+                        reject(
+                            new Error(
+                                "Image encoding failed."
+                            )
+                        );
+
+                    }
+
+                },
+                type,
+                quality
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   IMAGE COMPRESSION
+================================================== */
+
+async function compressImage(
+    file,
+    index
+){
+
+    status(
+        index,
+        '<span class="spinner"></span>Opening image...',
+        10
+    );
+
+
+    const image =
+        await loadImage(
+            file
+        );
+
+
+    let width =
+        image.naturalWidth;
+
+
+    let height =
+        image.naturalHeight;
+
+
+    const originalPixels =
+        width * height;
+
+
+    /*
+       Avoid huge memory usage
+    */
+
+    const maximumPixels =
+        24000000;
+
+
+    if(
+        originalPixels >
+        maximumPixels
+    ){
+
+        const scale =
+            Math.sqrt(
+                maximumPixels /
+                originalPixels
+            );
+
+
+        width =
+            Math.max(
+                64,
+                Math.floor(
+                    width * scale
+                )
+            );
+
+
+        height =
+            Math.max(
+                64,
+                Math.floor(
+                    height * scale
+                )
+            );
+
+    }
+
+
+    let output =
+        imageFormat.value;
+
+
+    let mime;
+
+    let extension;
+
+
+    if(
+        output === "jpeg"
+    ){
+
+        mime =
+            "image/jpeg";
+
+        extension =
+            "jpg";
+
+    }
+
+    else if(
+        output === "png"
+    ){
+
+        mime =
+            "image/png";
+
+        extension =
+            "png";
+
+    }
+
+    else{
+
+        mime =
+            "image/webp";
+
+        extension =
+            "webp";
+
+    }
+
+
+    const target =
+        getTargetBytes();
+
+
+    let bestBlob = null;
+
+    let bestDifference =
+        Infinity;
+
+
+    /*
+       Multiple passes.
+
+       First reduce quality.
+
+       If that is not enough,
+       reduce dimensions.
+
+       This fixes the old
+       "stuck at ~400 KB" issue.
+    */
+
+    for(
+        let dimensionPass = 0;
+        dimensionPass < 14;
+        dimensionPass++
+    ){
+
+        status(
+            index,
+            '<span class="spinner"></span>Image compression...',
+            15 +
+            dimensionPass * 5
+        );
+
+
+        const canvas =
+            document.createElement(
+                "canvas"
+            );
+
+
+        canvas.width =
+            width;
+
+
+        canvas.height =
+            height;
+
+
+        const ctx =
+            canvas.getContext(
+                "2d"
+            );
+
+
+        /*
+           White background for JPEG.
+        */
+
+        if(
+            mime === "image/jpeg"
+        ){
+
+            ctx.fillStyle =
+                "#ffffff";
+
+            ctx.fillRect(
+                0,
+                0,
+                width,
+                height
+            );
+
+        }
+
+
+        ctx.drawImage(
+            image,
+            0,
+            0,
+            width,
+            height
+        );
+
+
+        /*
+           PNG is lossless.
+
+           It cannot be forced to
+           arbitrary target size.
+
+           If target is impossible,
+           switch to WebP automatically.
+        */
+
+        if(
+            mime === "image/png"
+        ){
+
+            const pngBlob =
+                await canvasToBlob(
+                    canvas,
+                    "image/png"
+                );
+
+
+            if(
+                !bestBlob ||
+                Math.abs(
+                    pngBlob.size -
+                    target
+                )
+                <
+                bestDifference
+            ){
+
+                bestBlob =
+                    pngBlob;
+
+                bestDifference =
+                    Math.abs(
+                        pngBlob.size -
+                        target
+                    );
+
+            }
+
+
+            if(
+                pngBlob.size <= target
+            ){
+
+                return new File(
+                    [pngBlob],
+                    baseName(
+                        file.name
+                    ) +
+                    "-compressed.png",
+                    {
+                        type:
+                            "image/png"
+                    }
+                );
+
+            }
+
+
+            /*
+               Automatically move to WebP
+               when PNG target is impossible.
+            */
+
+            mime =
+                "image/webp";
+
+            extension =
+                "webp";
+
+        }
+
+
+        let low =
+            0.05;
+
+
+        let high =
+            Number(
+                quality.value
+            ) / 100;
+
+
+        /*
+           Binary search quality.
+        */
+
+        for(
+            let attempt = 0;
+            attempt < 10;
+            attempt++
+        ){
+
+            const q =
+                (
+                    low +
+                    high
+                ) / 2;
+
+
+            const blob =
+                await canvasToBlob(
+                    canvas,
+                    mime,
+                    q
+                );
+
+
+            const difference =
+                Math.abs(
+                    blob.size -
+                    target
+                );
+
+
+            if(
+                difference <
+                bestDifference
+            ){
+
+                bestBlob =
+                    blob;
+
+                bestDifference =
+                    difference;
+
+            }
+
+
+            if(
+                blob.size >
+                target
+            ){
+
+                high = q;
+
+            }
+            else{
+
+                low = q;
+
+            }
+
+
+            if(
+                blob.size <= target
+            ){
+
+                return new File(
+                    [blob],
+                    baseName(
+                        file.name
+                    ) +
+                    "-compressed." +
+                    extension,
+                    {
+                        type:mime
+                    }
+                );
+
+            }
+
+        }
+
+
+        /*
+           Still too big?
+
+           Reduce dimensions.
+
+           This is the important part.
+        */
+
+        if(
+            bestBlob &&
+            bestBlob.size >
+            target
+        ){
+
+            const ratio =
+                Math.sqrt(
+                    target /
+                    bestBlob.size
+                );
+
+
+            const safeRatio =
+                Math.max(
+                    0.40,
+                    Math.min(
+                        0.85,
+                        ratio
+                    )
+                );
+
+
+            const newWidth =
+                Math.max(
+                    64,
+                    Math.floor(
+                        width *
+                        safeRatio
+                    )
+                );
+
+
+            const newHeight =
+                Math.max(
+                    64,
+                    Math.floor(
+                        height *
+                        safeRatio
+                    )
+                );
+
+
+            if(
+                newWidth === width &&
+                newHeight === height
+            ){
+
+                break;
+
+            }
+
+
+            width =
+                newWidth;
+
+
+            height =
+                newHeight;
+
+        }
+        else{
+
+            break;
+
+        }
+
+    }
+
+
+    if(!bestBlob){
+
+        throw new Error(
+            "Image compression failed."
+        );
+
+    }
+
+
+    return new File(
+        [bestBlob],
+        baseName(
+            file.name
+        ) +
+        "-compressed." +
+        extension,
+        {
+            type:mime
+        }
+    );
+
+}
+
+
+/* ==================================================
+   FFmpeg LOAD
+================================================== */
+
 async function loadFFmpeg(){
- if(ffmpegReady)return ffmpeg;
- if(ffmpegLoading)return ffmpegLoading;
- if(!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg)
-   throw new Error("Local FFmpeg worker is missing. Upload ffmpeg.min.js and 814.ffmpeg.js beside index.html.");
- const {FFmpeg}=window.FFmpegWASM;
- ffmpeg=new FFmpeg();
- ffmpeg.on("log",({message})=>{ if(message && /error|invalid|failed/i.test(message)) console.warn("[FFmpeg]",message); });
- ffmpegLoading=(async()=>{
-   const base="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd";
-   await ffmpeg.load({
-     coreURL:await toBlobURL(base+"/ffmpeg-core.js","text/javascript"),
-     wasmURL:await toBlobURL(base+"/ffmpeg-core.wasm","application/wasm")
-   });
-   ffmpegReady=true; return ffmpeg;
- })();
- return ffmpegLoading;
+
+    if(
+        ffmpegLoaded
+    ){
+
+        return ffmpeg;
+
+    }
+
+
+    if(
+        ffmpegLoading
+    ){
+
+        return ffmpegLoading;
+
+    }
+
+
+    if(
+        !window.FFmpegWASM ||
+        !window.FFmpegWASM.FFmpeg
+    ){
+
+        throw new Error(
+            "FFmpeg is not loaded. Make sure ffmpeg.min.js and 814.ffmpeg.js are in the same GitHub folder as index.html."
+        );
+
+    }
+
+
+    const FFmpeg =
+        window.FFmpegWASM.FFmpeg;
+
+
+    ffmpeg =
+        new FFmpeg();
+
+
+    ffmpeg.on(
+        "log",
+        data => {
+
+            console.log(
+                "[FFmpeg]",
+                data.message
+            );
+
+        }
+    );
+
+
+    ffmpegLoading =
+        (async () => {
+
+            /*
+               IMPORTANT:
+
+               The FFmpeg JS worker is now
+               same-origin because ffmpeg.min.js
+               is loaded from ./ffmpeg.min.js.
+
+               Core itself can be loaded as Blob.
+            */
+
+            const coreJS =
+                "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.js";
+
+
+            const coreWASM =
+                "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd/ffmpeg-core.wasm";
+
+
+            const coreResponse =
+                await fetch(
+                    coreJS
+                );
+
+
+            if(
+                !coreResponse.ok
+            ){
+
+                throw new Error(
+                    "Could not load FFmpeg core."
+                );
+
+            }
+
+
+            const coreCode =
+                await coreResponse.text();
+
+
+            const coreBlob =
+                new Blob(
+                    [coreCode],
+                    {
+                        type:
+                            "text/javascript"
+                    }
+                );
+
+
+            const coreURL =
+                URL.createObjectURL(
+                    coreBlob
+                );
+
+
+            const wasmResponse =
+                await fetch(
+                    coreWASM
+                );
+
+
+            if(
+                !wasmResponse.ok
+            ){
+
+                throw new Error(
+                    "Could not load FFmpeg WASM."
+                );
+
+            }
+
+
+            const wasmBlob =
+                await wasmResponse.blob();
+
+
+            const wasmURL =
+                URL.createObjectURL(
+                    wasmBlob
+                );
+
+
+            await ffmpeg.load(
+                {
+                    coreURL:
+                        coreURL,
+
+                    wasmURL:
+                        wasmURL
+                }
+            );
+
+
+            ffmpegLoaded =
+                true;
+
+
+            return ffmpeg;
+
+        })();
+
+
+    return ffmpegLoading;
+
 }
 
-function imageEl(file){
- return new Promise((resolve,reject)=>{
-   const u=URL.createObjectURL(file),im=new Image();
-   im.onload=()=>{URL.revokeObjectURL(u);resolve(im)};im.onerror=()=>{URL.revokeObjectURL(u);reject(new Error("Image could not be decoded."))};im.src=u;
- });
-}
-function canvasBlob(c,type,q){return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error("Browser could not encode this image.")),type,q));}
 
-async function compressImage(file,i){
- const im=await imageEl(file);
- const originalPixels=im.naturalWidth*im.naturalHeight;
- const maxPixels=24e6;
- let scale=Math.min(1,Math.sqrt(maxPixels/originalPixels));
- let w=Math.max(1,Math.round(im.naturalWidth*scale)), h=Math.max(1,Math.round(im.naturalHeight*scale));
- const goal=targetBytes(), q0=Number(quality.value)/100;
- let fmt=imgfmt.value;
- if(fmt==="auto")fmt="webp";
- if(fmt==="jpeg" && file.type==="image/png" && im.naturalWidth){} 
- if(fmt==="png"){
-   const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(im,0,0,w,h);
-   const b=await canvasBlob(c,"image/png");
-   if(b.size<=goal || goal<=0) return new File([b],baseName(file.name)+".png",{type:"image/png"});
-   // Lossless PNG cannot be forced below an arbitrary target. Fall through to WebP for a real reduction.
-   fmt="webp";
- }
- const mime=fmt==="jpeg"?"image/jpeg":"image/webp";
- let best=null;
- for(let dimensionTry=0;dimensionTry<12;dimensionTry++){
-   const c=document.createElement("canvas");c.width=w;c.height=h;
-   c.getContext("2d").drawImage(im,0,0,w,h);
-   let lo=0.05,hi=q0,b=null;
-   for(let k=0;k<9;k++){
-     const q=(lo+hi)/2, candidate=await canvasBlob(c,mime,q);
-     if(!best || Math.abs(candidate.size-goal)<Math.abs(best.size-goal))best=candidate;
-     if(candidate.size>goal){hi=q;}else{b=candidate;lo=q;}
-   }
-   if(b && b.size<=goal)best=b;
-   if(best && best.size<=goal)break;
-   // If target still missed, reduce pixels. This fixes the old "stuck around 400 KB" behavior.
-   const factor=best && best.size>goal ? Math.max(.45,Math.sqrt(goal/best.size)*.92) : .8;
-   w=Math.max(64,Math.floor(w*factor)); h=Math.max(64,Math.floor(h*factor));
-   if(w===64 && h===64)break;
- }
- const outExt=fmt==="jpeg"?"jpg":"webp";
- return new File([best],baseName(file.name)+"-compressed."+outExt,{type:mime});
-}
+/* ==================================================
+   READ MEDIA DURATION
+================================================== */
 
-function mediaDuration(file){
- return new Promise((resolve,reject)=>{
-   const u=URL.createObjectURL(file), el=document.createElement(file.type.startsWith("video/")?"video":"audio");
-   el.preload="metadata";el.onloadedmetadata=()=>{URL.revokeObjectURL(u);resolve(el.duration)};el.onerror=()=>{URL.revokeObjectURL(u);reject(new Error("Media metadata could not be read."))};el.src=u;
- });
-}
+function getMediaDuration(
+    file
+){
 
-function mediaBitrate(goal,duration,container,kind){
- const reserve=kind==="video"?128000:0;
- const bps=Math.max(kind==="video"?120000:24000, Math.floor((goal*8/duration)-reserve));
- return Math.min(kind==="video"?8000000:320000,bps);
-}
+    return new Promise(
+        (resolve,reject) => {
 
-async function ffmpegTranscode(file,i,kind){
- const ff=await loadFFmpeg();
-  const inputName="input_"+Date.now()+"."+ext(file.name);
- const outputExt=kind==="video"?vidfmt.value:audfmt.value;
- const outputName="output_"+Date.now()+"."+outputExt;
- await ff.writeFile(inputName,await fetchFile(file));
- let duration=await mediaDuration(file);
- if(!Number.isFinite(duration)||duration<=0)duration=60;
- const goal=targetBytes();
- const attempts=[];
- for(let n=0;n<5;n++){
-   let br=mediaBitrate(goal,duration,outputExt,kind);
-   // progressively lower bitrate if the previous result missed target
-   if(n>0)br=Math.max(kind==="video"?60000:16000,Math.floor(br*Math.pow(.65,n)));
-   const q=Math.max(1,Math.min(100,Number(quality.value)));
-   const crf=Math.round(35-(q*.22)); // 13..34
-   const args=["-i",inputName,"-map_metadata","-1"];
-   if(kind==="video"){
-     if(outputExt==="webm")args.push("-c:v","libvpx-vp9","-b:v",String(Math.max(60000,br)),"-crf",String(Math.max(20,Math.min(45,crf))),"-c:a","libopus","-b:a","96k","-deadline","good","-cpu-used","4");
-     else args.push("-c:v","libx264","-preset","veryfast","-b:v",String(Math.max(60000,br)),"-maxrate",String(Math.max(60000,Math.floor(br*1.15))),"-bufsize",String(Math.max(120000,Math.floor(br*2))),"-pix_fmt","yuv420p","-c:a","aac","-b:a","96k","-movflags","+faststart");
-   }else{
-     if(outputExt==="ogg")args.push("-c:a","libopus","-b:a",String(Math.max(16000,Math.min(128000,br))));
-     else if(outputExt==="wav")args.push("-c:a","pcm_s16le");
-     else args.push("-c:a","libmp3lame","-b:a",String(Math.max(24000,Math.min(320000,br))));
-   }
-   args.push(outputName);
-   setStatus(i,`<span class="spinner"></span>FFmpeg pass ${n+1}/5…`,30+n*12);
-   try{
-     await ff.deleteFile(outputName).catch(()=>{});
-     await ff.exec(args);
-     const data=await ff.readFile(outputName);
-     const blob=new Blob([data.buffer],{type:kind==="video"?(outputExt==="webm"?"video/webm":"video/mp4"):(outputExt==="ogg"?"audio/ogg":outputExt==="wav"?"audio/wav":"audio/mpeg")});
-     attempts.push(blob);
-     if(blob.size<=goal)break;
-   }catch(e){console.error(e);break;}
- }
- await ff.deleteFile(inputName).catch(()=>{});await ff.deleteFile(outputName).catch(()=>{});
- if(!attempts.length)throw new Error("FFmpeg could not encode this file/codec.");
- attempts.sort((a,b)=>Math.abs(a.size-goal)-Math.abs(b.size-goal));
- const b=attempts[0];
- return new File([b],baseName(file.name)+"-compressed."+outputExt,{type:b.type});
+            const url =
+                URL.createObjectURL(
+                    file
+                );
+
+
+            const element =
+                document.createElement(
+                    file.type.startsWith(
+                        "video/"
+                    )
+                    ?
+                    "video"
+                    :
+                    "audio"
+                );
+
+
+            element.preload =
+                "metadata";
+
+
+            element.onloadedmetadata =
+                () => {
+
+                    const duration =
+                        element.duration;
+
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+
+                    resolve(
+                        Number.isFinite(
+                            duration
+                        )
+                        ?
+                        duration
+                        :
+                        60
+                    );
+
+                };
+
+
+            element.onerror =
+                () => {
+
+                    URL.revokeObjectURL(
+                        url
+                    );
+
+
+                    resolve(60);
+
+                };
+
+
+            element.src =
+                url;
+
+        }
+    );
+
 }
 
-async function compressPdf(file,i){
- if(!window.pdfjsLib)throw new Error("PDF engine is still loading. Please wait 2 seconds and try again.");
- const pdf=await window.pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
- const {jsPDF}=window.jspdf||{};
- if(!jsPDF)throw new Error("PDF generator did not load.");
- const goal=targetBytes();
- let scale=Math.min(1.5,Math.max(.65,Number(quality.value)/70));
- let best=null;
- for(let pass=0;pass<4;pass++){
-   let doc=null;
-   for(let p=1;p<=pdf.numPages;p++){
-     setStatus(i,`<span class="spinner"></span>PDF page ${p}/${pdf.numPages}…`,20+(p/pdf.numPages)*55);
-     const page=await pdf.getPage(p);
-     const vp=page.getViewport({scale});
-     const c=document.createElement("canvas");c.width=Math.ceil(vp.width);c.height=Math.ceil(vp.height);
-     await page.render({canvasContext:c.getContext("2d",{alpha:false}),viewport:vp,background:"white"}).promise;
-     const q=Math.max(.35,Math.min(.95,Number(quality.value)/100));
-     const jpg=await canvasBlob(c,"image/jpeg",q);
-     const img=await blobDataURL(jpg);
-     const w=210,h=(vp.height/vp.width)*210;
-     if(!doc)doc=new jsPDF({orientation:w>h?"landscape":"portrait",unit:"mm",format:[w,h],compress:true});
-     else doc.addPage([w,h],w>h?"landscape":"portrait");
-     doc.addImage(img,"JPEG",0,0,w,h,undefined,"FAST");
-   }
-   const out=doc.output("blob");
-   if(!best||out.size<best.size)best=out;
-   if(out.size<=goal)break;
-   scale=Math.max(.35,scale*.72);
-   if(scale<=.36)break;
- }
- return new File([best],baseName(file.name)+"-compressed.pdf",{type:"application/pdf"});
+
+/* ==================================================
+   MEDIA COMPRESSION
+================================================== */
+
+async function compressMedia(
+    file,
+    index,
+    type
+){
+
+    status(
+        index,
+        '<span class="spinner"></span>Loading FFmpeg...',
+        10
+    );
+
+
+    const ff =
+        await loadFFmpeg();
+
+
+    const inputName =
+        "input_" +
+        Date.now() +
+        "_" +
+        Math.random()
+            .toString(36)
+            .slice(2) +
+        "." +
+        getExtension(
+            file.name
+        );
+
+
+    const outputExtension =
+        type === "video"
+        ?
+        videoFormat.value
+        :
+        audioFormat.value;
+
+
+    const outputName =
+        "compressed_" +
+        Date.now() +
+        "." +
+        outputExtension;
+
+
+    const inputData =
+        new Uint8Array(
+            await file.arrayBuffer()
+        );
+
+
+    await ff.writeFile(
+        inputName,
+        inputData
+    );
+
+
+    const duration =
+        await getMediaDuration(
+            file
+        );
+
+
+    const target =
+        getTargetBytes();
+
+
+    let best = null;
+
+
+    /*
+       Up to 6 bitrate attempts.
+    */
+
+    for(
+        let attempt = 0;
+        attempt < 6;
+        attempt++
+    ){
+
+        status(
+            index,
+            '<span class="spinner"></span>' +
+            type.toUpperCase() +
+            " compression pass " +
+            (attempt + 1) +
+            "/6...",
+            20 +
+            attempt * 12
+        );
+
+
+        let bitrate;
+
+
+        /*
+           Calculate bitrate from target.
+
+           target bytes × 8
+           / duration
+        */
+
+        bitrate =
+            Math.floor(
+                (
+                    target *
+                    8
+                ) /
+                Math.max(
+                    1,
+                    duration
+                )
+            );
+
+
+        /*
+           Audio
+        */
+
+        if(
+            type === "audio"
+        ){
+
+            bitrate =
+                Math.max(
+                    24000,
+                    Math.min(
+                        320000,
+                        Math.floor(
+                            bitrate * .90
+                        )
+                    )
+                );
+
+        }
+
+
+        /*
+           Video
+
+           Reserve some bitrate for audio.
+        */
+
+        else{
+
+            bitrate =
+                Math.max(
+                    80000,
+                    Math.min(
+                        8000000,
+                        Math.floor(
+                            bitrate * .85
+                        )
+                    )
+                );
+
+        }
+
+
+        /*
+           Make later attempts smaller.
+        */
+
+        if(
+            attempt > 0
+        ){
+
+            bitrate =
+                Math.floor(
+                    bitrate *
+                    Math.pow(
+                        .65,
+                        attempt
+                    )
+                );
+
+        }
+
+
+        let args = [
+
+            "-i",
+            inputName,
+
+            "-map_metadata",
+            "-1"
+
+        ];
+
+
+        if(
+            type === "video"
+        ){
+
+            if(
+                outputExtension ===
+                "webm"
+            ){
+
+                args.push(
+
+                    "-c:v",
+                    "libvpx-vp9",
+
+                    "-b:v",
+                    bitrate + "k",
+
+                    "-crf",
+                    "35",
+
+                    "-c:a",
+                    "libopus",
+
+                    "-b:a",
+                    "64k"
+
+                );
+
+            }
+            else{
+
+                args.push(
+
+                    "-c:v",
+                    "libx264",
+
+                    "-preset",
+                    "veryfast",
+
+                    "-b:v",
+                    bitrate + "k",
+
+                    "-maxrate",
+                    bitrate + "k",
+
+                    "-bufsize",
+                    (
+                        bitrate * 2
+                    ) + "k",
+
+                    "-pix_fmt",
+                    "yuv420p",
+
+                    "-c:a",
+                    "aac",
+
+                    "-b:a",
+                    "64k",
+
+                    "-movflags",
+                    "+faststart"
+
+                );
+
+            }
+
+        }
+        else{
+
+            if(
+                outputExtension ===
+                "ogg"
+            ){
+
+                args.push(
+
+                    "-c:a",
+                    "libopus",
+
+                    "-b:a",
+                    Math.max(
+                        24000,
+                        Math.min(
+                            128000,
+                            bitrate
+                        )
+                    ) + "k"
+
+                );
+
+            }
+
+            else if(
+                outputExtension ===
+                "wav"
+            ){
+
+                args.push(
+
+                    "-c:a",
+                    "pcm_s16le"
+
+                );
+
+            }
+
+            else{
+
+                args.push(
+
+                    "-c:a",
+                    "libmp3lame",
+
+                    "-b:a",
+                    Math.max(
+                        24000,
+                        Math.min(
+                            320000,
+                            bitrate
+                        )
+                    ) + "k"
+
+                );
+
+            }
+
+        }
+
+
+        args.push(
+            outputName
+        );
+
+
+        try{
+
+            await ff.deleteFile(
+                outputName
+            );
+
+        }
+        catch(e){}
+
+
+        try{
+
+            await ff.exec(
+                args
+            );
+
+
+            const data =
+                await ff.readFile(
+                    outputName
+                );
+
+
+            const mime =
+                type === "video"
+                ?
+                (
+                    outputExtension ===
+                    "webm"
+                    ?
+                    "video/webm"
+                    :
+                    "video/mp4"
+                )
+                :
+                (
+                    outputExtension ===
+                    "ogg"
+                    ?
+                    "audio/ogg"
+                    :
+                    outputExtension ===
+                    "wav"
+                    ?
+                    "audio/wav"
+                    :
+                    "audio/mpeg"
+                );
+
+
+            const blob =
+                new Blob(
+                    [
+                        data.buffer
+                    ],
+                    {
+                        type:mime
+                    }
+                );
+
+
+            if(
+                !best ||
+                Math.abs(
+                    blob.size -
+                    target
+                )
+                <
+                Math.abs(
+                    best.size -
+                    target
+                )
+            ){
+
+                best =
+                    blob;
+
+            }
+
+
+            if(
+                blob.size <= target
+            ){
+
+                break;
+
+            }
+
+        }
+        catch(error){
+
+            console.error(
+                error
+            );
+
+            /*
+               If selected codec fails,
+               try another pass.
+            */
+
+        }
+
+    }
+
+
+    try{
+
+        await ff.deleteFile(
+            inputName
+        );
+
+    }
+    catch(e){}
+
+
+    try{
+
+        await ff.deleteFile(
+            outputName
+        );
+
+    }
+    catch(e){}
+
+
+    if(!best){
+
+        throw new Error(
+            "FFmpeg could not compress this file."
+        );
+
+    }
+
+
+    return new File(
+        [best],
+        baseName(
+            file.name
+        ) +
+        "-compressed." +
+        outputExtension,
+        {
+            type:best.type
+        }
+    );
+
 }
-function blobDataURL(blob){return new Promise((r,j)=>{const f=new FileReader();f.onload=()=>r(f.result);f.onerror=j;f.readAsDataURL(blob);});}
 
-async function gzipText(file){
- if(!("CompressionStream" in window))throw new Error("Browser does not support GZIP.");
- const data=await file.arrayBuffer(), cs=new CompressionStream("gzip");
- const stream=new Blob([data]).stream().pipeThrough(cs), blob=await new Response(stream).blob();
- return new File([blob],file.name+".gz",{type:"application/gzip"});
+
+/* ==================================================
+   PDF COMPRESSION
+================================================== */
+
+async function compressPDF(
+    file,
+    index
+){
+
+    status(
+        index,
+        '<span class="spinner"></span>Preparing PDF...',
+        10
+    );
+
+
+    /*
+       PDF.js is loaded dynamically.
+
+       This keeps the main HTML simple.
+    */
+
+    if(
+        !window.pdfjsLib
+    ){
+
+        await loadPDFJS();
+
+    }
+
+
+    const {
+        jsPDF
+    } =
+        window.jspdf;
+
+
+    const data =
+        new Uint8Array(
+            await file.arrayBuffer()
+        );
+
+
+    const pdf =
+        await window.pdfjsLib
+            .getDocument({
+                data:data
+            })
+            .promise;
+
+
+    const target =
+        getTargetBytes();
+
+
+    let scale =
+        Math.max(
+            .5,
+            Math.min(
+                1.5,
+                Number(
+                    quality.value
+                ) / 70
+            )
+        );
+
+
+    let bestBlob =
+        null;
+
+
+    for(
+        let pass = 0;
+        pass < 5;
+        pass++
+    ){
+
+        let doc =
+            null;
+
+
+        for(
+            let pageNumber = 1;
+            pageNumber <=
+            pdf.numPages;
+            pageNumber++
+        ){
+
+            status(
+                index,
+
+                '<span class="spinner"></span>' +
+                "PDF page " +
+                pageNumber +
+                "/" +
+                pdf.numPages,
+
+                20 +
+                (
+                    pageNumber /
+                    pdf.numPages
+                ) *
+                50
+            );
+
+
+            const page =
+                await pdf.getPage(
+                    pageNumber
+                );
+
+
+            const viewport =
+                page.getViewport({
+                    scale:scale
+                });
+
+
+            const canvas =
+                document.createElement(
+                    "canvas"
+                );
+
+
+            canvas.width =
+                Math.ceil(
+                    viewport.width
+                );
+
+
+            canvas.height =
+                Math.ceil(
+                    viewport.height
+                );
+
+
+            const ctx =
+                canvas.getContext(
+                    "2d"
+                );
+
+
+            ctx.fillStyle =
+                "#ffffff";
+
+
+            ctx.fillRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+
+            await page.render(
+                {
+                    canvasContext:ctx,
+
+                    viewport:viewport
+                }
+            ).promise;
+
+
+            const imageBlob =
+                await canvasToBlob(
+                    canvas,
+                    "image/jpeg",
+                    Math.max(
+                        .45,
+                        Number(
+                            quality.value
+                        ) / 100
+                    )
+                );
+
+
+            const imageData =
+                await blobToDataURL(
+                    imageBlob
+                );
+
+
+            const width =
+                210;
+
+
+            const height =
+                (
+                    viewport.height /
+                    viewport.width
+                ) *
+                width;
+
+
+            if(!doc){
+
+                doc =
+                    new jsPDF({
+                        orientation:
+                            width > height
+                            ?
+                            "landscape"
+                            :
+                            "portrait",
+
+                        unit:"mm",
+
+                        format:[
+                            width,
+                            height
+                        ],
+
+                        compress:true
+                    });
+
+            }
+            else{
+
+                doc.addPage(
+                    [
+                        width,
+                        height
+                    ],
+
+                    width > height
+                    ?
+                    "landscape"
+                    :
+                    "portrait"
+                );
+
+            }
+
+
+            doc.addImage(
+                imageData,
+                "JPEG",
+                0,
+                0,
+                width,
+                height,
+                undefined,
+                "FAST"
+            );
+
+        }
+
+
+        const blob =
+            doc.output(
+                "blob"
+            );
+
+
+        if(
+            !bestBlob ||
+            blob.size <
+            bestBlob.size
+        ){
+
+            bestBlob =
+                blob;
+
+        }
+
+
+        if(
+            blob.size <= target
+        ){
+
+            break;
+
+        }
+
+
+        scale =
+            Math.max(
+                .35,
+                scale * .70
+            );
+
+    }
+
+
+    if(!bestBlob){
+
+        throw new Error(
+            "PDF compression failed."
+        );
+
+    }
+
+
+    return new File(
+        [bestBlob],
+        baseName(
+            file.name
+        ) +
+        "-compressed.pdf",
+        {
+            type:
+                "application/pdf"
+        }
+    );
+
 }
 
-async function process(file,i){
- const e=ext(file.name);
- setStatus(i,"Reading…",5);
- if(file.type.startsWith("image/")||["jpg","jpeg","png","webp","bmp","gif","avif"].includes(e))return compressImage(file,i);
- if(file.type==="application/pdf"||e==="pdf")return compressPdf(file,i);
- if(file.type.startsWith("video/")||["mp4","mov","webm","avi","mkv","m4v","mpeg","mpg","3gp","ogv"].includes(e))return ffmpegTranscode(file,i,"video");
- if(file.type.startsWith("audio/")||["mp3","wav","m4a","aac","ogg","opus","flac","wma"].includes(e))return ffmpegTranscode(file,i,"audio");
- if(file.type.startsWith("text/")||["txt","csv","json","xml","html","css","js","svg"].includes(e))return gzipText(file);
- throw new Error("This format has no safe universal compressor in a browser. It was not modified.");
+
+/* ==================================================
+   LOAD PDF.JS
+================================================== */
+
+async function loadPDFJS(){
+
+    if(
+        window.pdfjsLib
+    ){
+
+        return;
+
+    }
+
+
+    /*
+       PDF.js module.
+
+       It runs entirely in browser.
+    */
+
+    const module =
+        await import(
+            "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs"
+        );
+
+
+    module.GlobalWorkerOptions.workerSrc =
+        "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+
+
+    window.pdfjsLib =
+        module;
+
+
+    /*
+       jsPDF
+    */
+
+    if(
+        !window.jspdf
+    ){
+
+        await new Promise(
+            (resolve,reject) => {
+
+                const script =
+                    document.createElement(
+                        "script"
+                    );
+
+
+                script.src =
+                    "https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js";
+
+
+                script.onload =
+                    resolve;
+
+
+                script.onerror =
+                    () =>
+                        reject(
+                            new Error(
+                                "jsPDF failed to load."
+                            )
+                        );
+
+
+                document.head.appendChild(
+                    script
+                );
+
+            }
+        );
+
+    }
+
 }
 
-compress.onclick=async()=>{
- if(!files.length){alert("Select at least one file.");return;}
- compress.disabled=true;clear.disabled=true;
- try{
-   for(let i=0;i<files.length;i++){
-     const f=files[i];
-     try{
-       setStatus(i,"Starting…",2);
-       const out=await process(f,i);
-       const smaller=out.size<f.size;
-       const pct=((1-out.size/f.size)*100);
-       if(!smaller){
-         setStatus(i,`⚠️ Best result is ${bytes(out.size)} (original ${bytes(f.size)}). This file cannot be safely made smaller with this method.`,100);
-       }else{
-         setStatus(i,`✅ ${bytes(f.size)} → <b>${bytes(out.size)}</b> • saved ${pct.toFixed(1)}%`,100);
-       }
-       downloadBlob(out,out.name,i);
-     }catch(e){
-       console.error(e);
-       setStatus(i,`❌ ${esc(e.message||"Compression failed.")}`,0);
-     }
-   }
- }finally{compress.disabled=false;clear.disabled=false;}
-};
 
-render();
-})();
+/* ==================================================
+   BLOB DATA URL
+================================================== */
+
+function blobToDataURL(
+    blob
+){
+
+    return new Promise(
+        (resolve,reject) => {
+
+            const reader =
+                new FileReader();
+
+
+            reader.onload =
+                () =>
+                    resolve(
+                        reader.result
+                    );
+
+
+            reader.onerror =
+                reject;
+
+
+            reader.readAsDataURL(
+                blob
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   GENERIC TEXT COMPRESSION
+================================================== */
+
+async function compressText(
+    file,
+    index
+){
+
+    if(
+        !("CompressionStream"
+            in window)
+    ){
+
+        throw new Error(
+            "This browser does not support GZIP."
+        );
+
+    }
+
+
+    status(
+        index,
+        '<span class="spinner"></span>Compressing text...',
+        50
+    );
+
+
+    const data =
+        await file.arrayBuffer();
+
+
+    const stream =
+        new Blob(
+            [data]
+        )
+        .stream()
+        .pipeThrough(
+            new CompressionStream(
+                "gzip"
+            )
+        );
+
+
+    const blob =
+        await new Response(
+            stream
+        ).blob();
+
+
+    return new File(
+        [blob],
+        file.name +
+        ".gz",
+        {
+            type:
+                "application/gzip"
+        }
+    );
+
+}
+
+
+/* ==================================================
+   PROCESS ONE FILE
+================================================== */
+
+async function processFile(
+    file,
+    index
+){
+
+    const extension =
+        getExtension(
+            file.name
+        );
+
+
+    /*
+       IMAGE
+    */
+
+    if(
+        file.type.startsWith(
+            "image/"
+        )
+        ||
+        [
+            "jpg",
+            "jpeg",
+            "png",
+            "webp",
+            "bmp",
+            "avif"
+        ].includes(
+            extension
+        )
+    ){
+
+        return compressImage(
+            file,
+            index
+        );
+
+    }
+
+
+    /*
+       PDF
+    */
+
+    if(
+        file.type ===
+        "application/pdf"
+        ||
+        extension === "pdf"
+    ){
+
+        return compressPDF(
+            file,
+            index
+        );
+
+    }
+
+
+    /*
+       VIDEO
+    */
+
+    if(
+        file.type.startsWith(
+            "video/"
+        )
+        ||
+        [
+            "mp4",
+            "mov",
+            "webm",
+            "avi",
+            "mkv",
+            "m4v",
+            "mpeg",
+            "mpg",
+            "3gp",
+            "ogv"
+        ].includes(
+            extension
+        )
+    ){
+
+        return compressMedia(
+            file,
+            index,
+            "video"
+        );
+
+    }
+
+
+    /*
+       AUDIO
+    */
+
+    if(
+        file.type.startsWith(
+            "audio/"
+        )
+        ||
+        [
+            "mp3",
+            "wav",
+            "m4a",
+            "aac",
+            "ogg",
+            "opus",
+            "flac",
+            "wma"
+        ].includes(
+            extension
+        )
+    ){
+
+        return compressMedia(
+            file,
+            index,
+            "audio"
+        );
+
+    }
+
+
+    /*
+       TEXT
+    */
+
+    if(
+        file.type.startsWith(
+            "text/"
+        )
+        ||
+        [
+            "txt",
+            "csv",
+            "json",
+            "xml",
+            "html",
+            "css",
+            "js",
+            "svg"
+        ].includes(
+            extension
+        )
+    ){
+
+        return compressText(
+            file,
+            index
+        );
+
+    }
+
+
+    throw new Error(
+        "This file format does not have a safe browser-side compressor."
+    );
+
+}
+
+
+/* ==================================================
+   GET EXTENSION
+================================================== */
+
+function getExtension(
+    filename
+){
+
+    const parts =
+        filename
+            .toLowerCase()
+            .split(".");
+
+
+    return parts.length > 1
+        ?
+        parts.pop()
+        :
+        "";
+
+}
+
+
+/* ==================================================
+   DOWNLOAD
+================================================== */
+
+function createDownload(
+    blob,
+    filename,
+    index
+){
+
+    const box =
+        document.getElementById(
+            "download-" +
+            index
+        );
+
+
+    box.innerHTML = "";
+
+
+    const url =
+        URL.createObjectURL(
+            blob
+        );
+
+
+    const link =
+        document.createElement(
+            "a"
+        );
+
+
+    link.href =
+        url;
+
+
+    link.download =
+        filename;
+
+
+    link.className =
+        "download";
+
+
+    link.textContent =
+        "⬇ Download";
+
+
+    /*
+       Important for mobile browsers.
+    */
+
+    link.target =
+        "_blank";
+
+
+    link.rel =
+        "noopener";
+
+
+    box.appendChild(
+        link
+    );
+
+
+    setTimeout(
+        () => {
+
+            URL.revokeObjectURL(
+                url
+            );
+
+        },
+        60000
+    );
+
+}
+
+
+/* ==================================================
+   COMPRESS ALL
+================================================== */
+
+compressButton.addEventListener(
+    "click",
+    async () => {
+
+        if(
+            selectedFiles.length === 0
+        ){
+
+            alert(
+                "Please select files first."
+            );
+
+            return;
+
+        }
+
+
+        compressButton.disabled =
+            true;
+
+
+        clearButton.disabled =
+            true;
+
+
+        for(
+            let i = 0;
+            i < selectedFiles.length;
+            i++
+        ){
+
+            const file =
+                selectedFiles[i];
+
+
+            try{
+
+                status(
+                    i,
+                    '<span class="spinner"></span>Starting...',
+                    5
+                );
+
+
+                const result =
+                    await processFile(
+                        file,
+                        i
+                    );
+
+
+                const saving =
+                    (
+                        1 -
+                        result.size /
+                        file.size
+                    ) *
+                    100;
+
+
+                if(
+                    result.size <
+                    file.size
+                ){
+
+                    status(
+                        i,
+
+                        "✅ " +
+
+                        formatBytes(
+                            file.size
+                        )
+
+                        +
+
+                        " → <b>" +
+
+                        formatBytes(
+                            result.size
+                        )
+
+                        +
+
+                        "</b>"
+
+                        +
+
+                        " • Saved " +
+
+                        saving.toFixed(
+                            1
+                        )
+
+                        +
+
+                        "%",
+
+                        100
+                    );
+
+                }
+                else{
+
+                    status(
+                        i,
+
+                        "⚠️ Result is " +
+
+                        formatBytes(
+                            result.size
+                        )
+
+                        +
+
+                        ". Original was " +
+
+                        formatBytes(
+                            file.size
+                        )
+
+                        +
+
+                        ".",
+
+                        100
+                    );
+
+                }
+
+
+                createDownload(
+                    result,
+                    result.name,
+                    i
+                );
+
+            }
+            catch(error){
+
+                console.error(
+                    error
+                );
+
+
+                status(
+                    i,
+
+                    "❌ " +
+                    escapeHTML(
+                        error.message ||
+                        "Compression failed."
+                    ),
+
+                    0
+                );
+
+            }
+
+        }
+
+
+        compressButton.disabled =
+            false;
+
+
+        clearButton.disabled =
+            false;
+
+    }
+);
+
+
+/* ==================================================
+   CLEAR
+================================================== */
+
+clearButton.addEventListener(
+    "click",
+    () => {
+
+        selectedFiles =
+            [];
+
+
+        fileList.innerHTML =
+            "";
+
+
+        fileInput.value =
+            "";
+
+    }
+);
+
+
+/* ==================================================
+   START
+================================================== */
+
+renderFiles();
+
 </script>
+
 </body>
-  </html>
-  
+</html>
