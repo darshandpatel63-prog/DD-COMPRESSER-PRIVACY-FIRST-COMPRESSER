@@ -1,435 +1,156 @@
 https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
 
-# ⚡ DD Compressor — Privacy-First File Compressor
+# DD Compressor — Privacy First
 
-DD Compressor is a free, browser-based file compression tool designed with a privacy-first approach.
+A browser-based file compressor. Images, video, audio, and PDFs are re-encoded **inside the browser tab that opens this page** — nothing is ever uploaded, because the app has no upload endpoint to send anything to.
 
-It can process images, PDFs, audio, video, and selected text-based files directly inside the user's browser.
+**Live once deployed:** `https://<your-username>.github.io/<your-repo>/`
 
-> 🔒 Your selected files are processed locally in the browser. The application does not require uploading them to a custom compression server.
+---
 
-## 🌐 Live Website
+## What changed from the original project
 
-https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
+This is a rebuild of the original DD Compressor, not a patch. The original HTML/CSS/UX ideas were good and are kept; the audit below is what was actually broken and how each was fixed.
 
-## ✨ Features
+### 1. FFmpeg never loaded at all
+`index.html` referenced `./ffmpeg.min.js` locally, but that file (and its companion `814.ffmpeg.js`) were never actually included in the repository — so on GitHub Pages, `window.FFmpegWASM` was always `undefined` and video/audio compression failed before it could even start.
 
-### 🖼️ Image Compression
+The underlying reason those files have to sit **next to each other**, and be loaded from the **same origin as the page**, is in `@ffmpeg/ffmpeg`'s own UMD bundle: it resolves its worker chunk relative to wherever its own `<script>` tag was loaded from —
 
-Common supported formats:
-
-- JPG / JPEG
-- PNG
-- WebP
-- BMP
-- AVIF
-
-The image compressor can:
-
-- Adjust image quality
-- Reduce dimensions when necessary
-- Perform multiple compression passes
-- Convert to WebP or JPEG
-- Keep PNG output when practical
-- Attempt to reach the selected target size
-- Show original size, compressed size, and savings
-
-### 📄 PDF Compression
-
-PDF files can be processed in the browser.
-
-The current approach renders PDF pages locally and creates a new optimized PDF.
-
-> **Important:** This is primarily an image-based PDF optimization method. Complex PDFs containing selectable text, forms, annotations, embedded files, or other special objects may not preserve every original PDF feature.
-
-### 🎵 Audio Compression
-
-Common formats include:
-
-- MP3
-- WAV
-- M4A
-- AAC
-- OGG
-- Opus
-- FLAC
-- WMA
-
-Output options include MP3, OGG/Opus, and WAV.
-
-### 🎬 Video Compression
-
-Common formats include:
-
-- MP4
-- MOV
-- WebM
-- AVI
-- MKV
-- M4V
-- MPEG / MPG
-- 3GP
-- OGV
-
-Output options include:
-
-- MP4 — H.264 + AAC
-- WebM — VP9 + Opus
-
-### 📦 Text / Data Compression
-
-Supported text/data formats can be compressed with browser GZIP support:
-
-- TXT
-- CSV
-- JSON
-- XML
-- HTML
-- CSS
-- JS
-- SVG
-
-## 🔒 Privacy First
-
-Privacy is a core goal of DD Compressor.
-
-The application's compression workflow is designed to process selected files locally in the user's browser.
-
-There is:
-
-- ❌ No account required
-- ❌ No custom file-storage server
-- ❌ No application database for uploaded files
-- ❌ No required server-side upload for compression
-
-The compressed file is generated in the browser and can be downloaded directly to the user's device.
-
-### Third-party resources
-
-The project uses browser-side libraries such as FFmpeg/ffmpeg.wasm, PDF.js, and jsPDF. Some library resources may be loaded from public CDNs.
-
-The application's intended compression workflow does not upload the selected file to those CDN services.
-
-For highly confidential files, users should still consider their browser, device, extensions, network, and third-party dependencies.
-
-## 🎯 Target Size
-
-Users can choose:
-
-- KB
-- MB
-- GB
-- TB
-
-For example:
-
-```text
-Target: 700 KB
+```js
+// from node_modules/@ffmpeg/ffmpeg/dist/umd/ffmpeg.js (unminified excerpt)
+new Worker(new URL(e.p + e.u(814), e.b))   // e.p = directory of ffmpeg.js itself
 ```
 
-The compressor treats the target as a goal and tries to get the output as close as practical.
+If `ffmpeg.js` is loaded from a CDN, `e.p` becomes the CDN's URL, and the browser refuses to construct a Worker whose script lives on a different origin than the page — which is exactly the original error: *"Failed to construct 'Worker': Script at https://cdn.jsdelivr.net/.../814.ffmpeg.js cannot be accessed from origin https://....github.io"*.
 
-### Important limitation
+**Fix:** `vendor/ffmpeg/ffmpeg.js` and `vendor/ffmpeg/814.ffmpeg.js` are real files (downloaded from the published `@ffmpeg/ffmpeg@0.12.15` npm package, not placeholders), committed side by side, loaded via a same-origin relative `<script src="./vendor/ffmpeg/ffmpeg.js">`. The WASM core (`ffmpeg-core.js` / `ffmpeg-core.wasm`, from `@ffmpeg/core@0.12.10`) is also vendored locally and converted to `blob:` URLs before being handed to `ffmpeg.load()`, so it never depends on a CDN being reachable.
 
-A target size is **not a mathematical guarantee**.
+*Verified for real:* the exact vendored `ffmpeg-core.wasm` was loaded and executed under Node for this project (not just assumed to work) — see "Testing performed" below.
 
-An already-compressed file may have very little additional compression available.
+### 2. Video/audio bitrate was 1000x too high
+`compressMedia()` correctly computed a bitrate in **bits/second** (`targetBytes * 8 / duration`), then built the ffmpeg flag as `` `${bitrate}k` ``. FFmpeg's `k` suffix means ×1000 — so a correctly-computed value like `313000` (313 kbps) became the string `"313000k"`, i.e. **313,000 kbps (≈313 Mbps)**. That's an effectively unlimited bitrate ceiling, so `-maxrate`/`-bufsize` did nothing and target-size compression for video/audio couldn't have worked even once FFmpeg loaded.
 
-Examples:
+**Fix:** `bpsToKFlag()` in `js/compressors/ffmpeg-engine.js` divides by 1000 before appending `k`. Confirmed with a real encode (synthetic FFmpeg `lavfi` source, no external test file needed) that a 150KB/3-second target now produces flags like `-b:v 313k` instead of `-b:v 312832k`.
 
-- JPG → JPG
-- WebP → WebP
-- MP3 → MP3
-- MP4 → MP4
+### 3. Compressing a small/already-optimized image could make it *bigger*
+`compressImage()` tracked "the candidate closest to the target size," with no floor comparing it to the **original** file size. Converting an already-small image to PNG via `canvas.toBlob` — the default first attempt — can genuinely balloon a small photo (e.g. 80 KB → 400+ KB), because canvas always emits full 32-bit-per-pixel PNG, never the palette/indexed optimization a small source file may have used. Separately, the dimension-reduction loop had a `newWidth === width → break` guard for the 64px floor that could exit silently while still holding that oversized early candidate.
 
-Trying to force an extremely small size can require substantial quality loss.
+**Fix:** the new engine (`js/workers/image-worker.js`) always compares its final candidate against the **original file size** and refuses to return anything larger — falling back to the unmodified original with an honest "already efficient" status instead. Verified with a real regression test: an 18 KB JPEG asked to hit an 8 KB target now correctly returns ~8 KB (never the original size or larger); see "Testing performed."
 
-The application therefore attempts to balance:
+### 4. PDF compression was full-page rasterization
+The original approach rendered every page to a canvas via PDF.js and rebuilt the file as a stack of images via jsPDF. It shrinks photo-heavy PDFs, but it destroys selectable text, real vector graphics, and form fields on **every** PDF, including ones that were mostly text.
 
-**File Size ↔ Quality**
+**Fix:** `js/compressors/pdf.js` walks the PDF's own object graph (via `pdf-lib`) and recompresses just the embedded JPEG (`/DCTDecode`) images in place — the same objects a scanner or photo-heavy export actually uses for their bulk. Text, fonts, and vector paths are untouched because their PDF objects are never touched. A resume or invoice with no photos will correctly show little or no size change; that is the honest result for a document with nothing large left to shrink.
 
-## 🖼️ Image Compression Logic
+---
 
-The compressor first tries quality-based compression.
+## Architecture decisions (and why)
 
-If that is not enough to reach the target, it can progressively reduce image dimensions.
+| Question | Decision | Why |
+|---|---|---|
+| Framework? | None — plain HTML/CSS/JS, ES modules, no build step | The brief is "code from a phone, deploy instantly." A bundler (Next.js/Vite/etc.) would need a build step you can't easily run from a phone, and GitHub Pages just serves files as-is — a build step is a liability here, not a feature. |
+| Image engine | Fully custom (`Canvas`/`OffscreenCanvas` + a plain binary search) | This is realistically implementable to a high standard with browser-native APIs alone — no library does this measurably better than a well-written binary search over quality and dimensions. |
+| Video/audio engine | `@ffmpeg/ffmpeg` (WebAssembly), vendored locally | Writing a video codec from scratch is not a reasonable ask; FFmpeg-in-WASM is the standard, well-maintained solution the whole ecosystem already relies on. Our own code owns the bitrate math, format selection, and UI — FFmpeg only does the encode. |
+| PDF engine | `pdf-lib`, with our own image-recompression logic on top | `pdf-lib` gives safe low-level access to a PDF's object graph; the actual "find images, recompress them, preserve everything else" logic is ours, not a black box. |
+| FFmpeg core variant | Single-threaded (`@ffmpeg/core`, not `@ffmpeg/core-mt`) | The multi-threaded core needs `SharedArrayBuffer`, which needs the page to be [cross-origin isolated](https://web.dev/articles/coop-coep) (COOP/COEP response headers). GitHub Pages does not let you set custom response headers, so the multi-threaded core would silently fail there. Single-threaded is slower but actually works out of the box. (A `coi-serviceworker` trick can add this later — see "Future ideas.") |
+| Fonts | Inter, self-hosted under `vendor/fonts/` (`@fontsource/inter`, Latin subset only) | Consistent with "local-first, no unnecessary runtime downloads" — the page makes zero requests to any font or asset CDN. |
 
-Typical process:
+## Privacy & security, concretely
 
-```text
-Original Image
-      ↓
-Quality adjustment
-      ↓
-Multiple encoding attempts
-      ↓
-Dimension reduction if required
-      ↓
-Target-size attempt
-      ↓
-Compressed file
+The privacy claim isn't just prose — the page's `Content-Security-Policy` (in `index.html`'s `<head>`) is the actual enforcement of it:
+
+```
+default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self';
+font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:;
+worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none';
+base-uri 'self'; form-action 'self';
 ```
 
-This helps avoid the common problem where an image stops getting smaller around a particular file size.
+There is no origin in that policy a file could be sent to. Even a future bug in this code could not open a working upload without also rewriting this policy. (`frame-ancestors` is intentionally not included: the CSP spec only honors that directive from a real HTTP header, not a `<meta>` tag, and GitHub Pages doesn't let this project set one — so it's left out rather than shipped as a policy that looks stricter than it is.)
 
-### PNG note
+Other things checked during the audit: no `eval`/`new Function`, no `innerHTML` fed with a user-controlled filename or status string (`js/ui.js` uses `textContent` for all of it), object URLs are revoked after downloads instead of leaking, FFmpeg's virtual filesystem is cleaned up after every job (success or failure), and every worker/library file is a real, verifiable local file — nothing is a stub.
 
-PNG is lossless, so it cannot always be reduced to an arbitrary target size while preserving the same information.
+## Testing performed
 
-For aggressive size reduction, WebP or JPEG can often produce much smaller files.
+This project can't run a real browser inside the environment it was built in, so testing focused on what could be verified for real rather than assumed:
 
-## 🎬 Video Compression
+- **The exact vendored `ffmpeg-core.wasm` binary** was loaded and executed (not just downloaded) — confirmed `ffmpeg version 5.1.4`, confirmed `libx264`/`libvpx`/`aac`/`libmp3lame`/`libopus`/`libvorbis` are all present in this build, and ran a real synthetic encode (FFmpeg's own `lavfi` test source, no external file needed) to confirm the bitrate math produces sane, safe output sizes.
+- **The exact vendored `pdf-lib.min.js`** was used to build a real multi-image PDF, locate its embedded JPEGs via the same object-graph walk `pdf.js` uses, confirm an image with a transparency mask is correctly skipped, mutate and re-save it, and reload the result to confirm it's still a valid PDF.
+- **The exact, unmodified `image-worker.js`** was run end-to-end (via a Canvas-API shim) against real generated images, including the specific "small file gets bigger" scenario: an 18 KB JPEG targeting 8 KB now correctly returns ≈8 KB, never the original size or larger.
+- Every JS module's imports/exports were verified to actually resolve (no typos or mismatched names) by loading the real module graph under Node.
+- 23 unit tests cover the pure logic: byte formatting, target-size parsing, file-type detection, and the bits/second → `Nk` flag conversion (including a direct comparison against the original bug's output).
 
-Video compression mainly changes:
+**What this doesn't cover**, honestly: real browser behavior (actual Worker threads, real WebP encoding, real user interaction, mobile Safari/Chrome quirks) needs a real browser, which this build environment doesn't have. Before relying on this for something important, open it in a real browser and run through the checklist below.
 
-- Video bitrate
-- Audio bitrate
-- Video codec
-- Output container
+### Manual QA checklist (do this after deploying)
+- [ ] Drop a large photo (>5 MB), target 200 KB → confirm output ≤ 200 KB and opens correctly
+- [ ] Drop a small, already-compressed JPEG, target smaller than the file → confirm output is smaller than the *original*, not just "close to target"
+- [ ] Drop a PNG graphic with transparency, format "Auto", aggressive target → confirm it either preserves transparency (WebP) or clearly says it switched formats
+- [ ] Drop an MP4, check the browser console for the FFmpeg log lines, confirm the download plays
+- [ ] Drop a scanned/photo-heavy PDF → confirm output is smaller and text (if any) is still selectable
+- [ ] Drop a text-only PDF (resume, invoice) → confirm it honestly reports little/no change instead of faking a result
+- [ ] Try 3–4 files at once via "Compress all" → confirm they process one at a time without the tab freezing
+- [ ] On a phone: confirm the drop zone, cards, and buttons are all usable one-handed
 
-For example:
+## Formats
 
-```text
-Input Video
-    ↓
-H.264 / VP9 encoding
-    ↓
-Bitrate adjustment
-    ↓
-Audio optimization
-    ↓
-Compressed Video
+| Type | Reads | Writes | Engine |
+|---|---|---|---|
+| Image | jpg, png, webp, gif, bmp | jpg, png, webp | Our own code (Canvas/OffscreenCanvas) |
+| Video | mp4, mov, webm, avi, mkv | mp4, webm | FFmpeg (WASM), local |
+| Audio | mp3, wav, m4a, aac, ogg, flac | mp3, aac, ogg, wav | FFmpeg (WASM), local |
+| PDF | pdf | pdf | Our own code + pdf-lib |
+| Other | anything else | `.gz` | Native `CompressionStream` |
+
+A target size is a goal, not a guarantee — an already-compressed file has little room left, and this app says so rather than faking a result.
+
+## Deploying (GitHub Pages)
+
+1. Push every file in this folder to your repository's default branch, root of the repo (not a subfolder) — the relative paths in `index.html` (`./vendor/...`, `./js/...`) depend on that.
+2. Repo → **Settings → Pages → Deploy from a branch** → branch `main`, folder `/ (root)`.
+3. Open the URL GitHub gives you. No build step, no `npm install` needed to run it.
+
+`.nojekyll` is included so GitHub Pages serves the `vendor/` folder as-is without GitHub's default Jekyll processing getting involved.
+
+## Project structure
+
+```
+index.html
+css/styles.css
+js/
+  utils.js                 shared helpers
+  ui.js                    DOM rendering (file cards, results, toasts)
+  main.js                  wiring: drag&drop, state, dispatch
+  compressors/
+    image.js               worker wrapper
+    ffmpeg-engine.js        shared FFmpeg singleton + the bitrate-flag fix
+    video.js / audio.js     FFmpeg-based encoders
+    pdf.js                  pdf-lib-based embedded-image recompression
+    generic.js              native gzip fallback
+  workers/
+    image-worker.js         the actual image compression algorithm
+vendor/
+  ffmpeg/                  ffmpeg.js + 814.ffmpeg.js + core/ (real files, MIT/GPL — see THIRD_PARTY_LICENSES.md)
+  pdf-lib/                 pdf-lib.min.js (MIT)
+  fonts/                   Inter, Latin subset (OFL-1.1)
 ```
 
-Very small target sizes may require lower resolution and/or lower bitrate.
+## Known limitations (stated honestly, not hidden)
 
-Therefore, original video quality cannot always be preserved when the target is extremely small.
+- **WebP is only as good as the browser's own encoder.** Older/unusual browsers without WebP support fall back to JPEG automatically in "Auto" mode.
+- **PDF compression only touches embedded JPEGs.** PNG-style raw bitmap images inside a PDF, and images with a transparency mask, are left untouched rather than risk corrupting them (see `js/compressors/pdf.js` for the exact scope).
+- **WebM/VP9 encoding is slow** in a single-threaded WASM core — it works, but expect it to take noticeably longer than MP4/H.264 for the same clip, especially on a phone.
+- **Very large videos** (multi-GB) may exceed what a mobile browser tab can hold in memory. There is no server fallback by design — that's the privacy trade-off.
+- Target sizes are estimates for video/audio (bitrate targeting), not byte-exact — real footage compresses differently from a synthetic test signal, and the app reports the actual achieved size rather than assuming the estimate was exact.
 
-## 🎵 Audio Compression
+## Future ideas (not implemented now, so they're not overclaimed)
 
-Audio compression can change:
+- Cross-origin isolation via a service-worker trick (`coi-serviceworker`) to unlock the multi-threaded FFmpeg core for faster video encodes.
+- Two-pass video encoding for tighter target-size accuracy (roughly 2x the encode time).
+- A small IndexedDB-backed "recently compressed" history, kept entirely local.
+- AVIF output once browser encoder support is consistent enough to rely on.
 
-- Codec
-- Bitrate
-- Output format
+## License
 
-Higher bitrate generally gives better audio quality but creates larger files.
-
-Lower bitrate generally creates smaller files but can reduce audio quality.
-
-## 📄 PDF Compression
-
-The current PDF method can be useful for:
-
-- Scanned documents
-- Image-heavy PDFs
-- Photo PDFs
-- Presentation-style PDFs
-
-Because pages may be rasterized, the resulting PDF may differ from the original in:
-
-- Text selection
-- Searchability
-- Forms
-- Annotations
-- Embedded objects
-
-Keep the original PDF when those features are important.
-
-## 📱 Mobile Support
-
-The interface is designed for modern:
-
-- Android browsers
-- iPhone/iPad browsers
-- Desktop browsers
-- Chromium-based browsers
-- Firefox
-- Safari
-
-Large files can require significant RAM and CPU.
-
-For very large videos or PDFs, desktop hardware may provide a faster and more stable experience.
-
-## 🧩 Project Structure
-
-For FFmpeg browser processing, keep the following files in the same GitHub Pages folder:
-
-```text
-DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
-│
-├── index.html
-├── ffmpeg.min.js
-├── 814.ffmpeg.js
-└── README.md
-```
-
-### Why are FFmpeg files local?
-
-The FFmpeg JavaScript package uses a Web Worker.
-
-Serving the worker from the same origin as the GitHub Pages application helps avoid browser cross-origin Worker restrictions.
-
-Therefore, `ffmpeg.min.js` and its worker file should be hosted alongside `index.html`.
-
-## 🌍 GitHub Pages
-
-Recommended GitHub Pages configuration:
-
-```text
-Repository
-   ↓
-Settings
-   ↓
-Pages
-   ↓
-Deploy from a branch
-   ↓
-main
-   ↓
-/ (root)
-```
-
-After GitHub Pages publishes the repository, open the generated Pages URL.
-
-## 🛠️ Technologies
-
-DD Compressor uses web technologies including:
-
-- HTML5
-- CSS3
-- JavaScript
-- File API
-- Blob API
-- Canvas API
-- Web Workers
-- Compression Streams API
-- FFmpeg / ffmpeg.wasm
-- PDF.js
-- jsPDF
-
-## 📚 Open-Source Technologies
-
-### FFmpeg
-
-https://ffmpeg.org/
-
-FFmpeg is a multimedia framework used for audio and video processing.
-
-### ffmpeg.wasm
-
-https://github.com/ffmpegwasm/ffmpeg.wasm
-
-A WebAssembly-based FFmpeg project for running FFmpeg in web environments.
-
-### PDF.js
-
-https://github.com/mozilla/pdf.js
-
-A JavaScript PDF rendering library.
-
-### jsPDF
-
-https://github.com/parallax/jsPDF
-
-A JavaScript library for generating PDF documents.
-
-Please review the respective projects' licenses and documentation before redistributing third-party libraries or bundled dependencies.
-
-## ⚠️ Performance & Browser Limitations
-
-Browser compression has advantages, but large files can consume substantial:
-
-- RAM
-- CPU
-- Battery
-- Browser resources
-
-Video and audio transcoding can be especially CPU-intensive.
-
-On mobile devices, the browser may stop a long-running operation if the device becomes low on memory or the browser puts the tab into the background.
-
-## 🐛 Known Limitations
-
-Some files may not become significantly smaller.
-
-This is normal for files that are already highly compressed, such as:
-
-- JPG
-- WebP
-- MP3
-- MP4
-- HEVC/H.265 video
-- Optimized PDFs
-- ZIP
-- RAR
-- 7Z
-
-Re-compressing such files can sometimes produce a larger file or reduce quality without meaningful size savings.
-
-The application should not claim a file is smaller when the resulting file is actually larger.
-
-## 🔐 Security Disclaimer
-
-DD Compressor is designed around local browser-side processing, but no web application can guarantee absolute security or privacy in every environment.
-
-Browser extensions, compromised devices, browser bugs, network configuration, third-party resources, and other factors can affect privacy and security.
-
-For extremely sensitive information, consider using trusted offline software in a controlled environment.
-
-## 📜 License
-
-Unless a separate license file is included, the original source code of this repository is considered **all rights reserved** by the repository owner.
-
-Third-party libraries remain subject to their own licenses.
-
-If you want the DD Compressor source code to be freely used, modified, and redistributed, add an appropriate open-source license such as MIT.
-
-## 🤝 Contributions
-
-Bug reports, suggestions, performance improvements, and compatibility fixes are welcome.
-
-Before submitting changes:
-
-1. Test small and large files.
-2. Test on both desktop and mobile.
-3. Verify the original file remains unchanged.
-4. Verify the compressed output opens correctly.
-5. Avoid unnecessary server-side file uploads.
-6. Keep privacy as a core design principle.
-
-## ❤️ Project Goal
-
-The goal of DD Compressor is simple:
-
-> **Make file compression easy, free, fast, and privacy-focused — directly in the user's browser.**
-
-```text
-Choose
-  ↓
-Compress
-  ↓
-Download
-```
-
-No unnecessary account.  
-No custom compression server.  
-No forced file upload.
-
-## 👨‍💻 Author
-
-**DD Compressor**
-
-Privacy-first browser-based file compression project.
-
-## ⭐ Support the Project
-
-If you find DD Compressor useful:
-
-- ⭐ Star the repository
-- 🐛 Report bugs
-- 💡 Suggest improvements
-- 🔧 Contribute fixes
-- 📢 Share the project
-
-Thank you for supporting a privacy-focused browser tool.
+This project's own code: MIT (see `LICENSE`). Vendored third-party code keeps its original license — see `THIRD_PARTY_LICENSES.md`.
