@@ -1,5 +1,3 @@
-https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
-
 # DD Compressor — Privacy First
 
 A browser-based file compressor. Images, video, audio, and PDFs are re-encoded **inside the browser tab that opens this page** — nothing is ever uploaded, because the app has no upload endpoint to send anything to.
@@ -27,6 +25,17 @@ If `ffmpeg.js` is loaded from a CDN, `e.p` becomes the CDN's URL, and the browse
 **Fix:** `vendor/ffmpeg/ffmpeg.js` and `vendor/ffmpeg/814.ffmpeg.js` are real files (downloaded from the published `@ffmpeg/ffmpeg@0.12.15` npm package, not placeholders), committed side by side, loaded via a same-origin relative `<script src="./vendor/ffmpeg/ffmpeg.js">`. The WASM core (`ffmpeg-core.js` / `ffmpeg-core.wasm`, from `@ffmpeg/core@0.12.10`) is also vendored locally and converted to `blob:` URLs before being handed to `ffmpeg.load()`, so it never depends on a CDN being reachable.
 
 *Verified for real:* the exact vendored `ffmpeg-core.wasm` was loaded and executed under Node for this project (not just assumed to work) — see "Testing performed" below.
+
+### 5. Why the .wasm is split in two
+`ffmpeg-core.wasm` is ~32MB. That's over GitHub's 25MB limit for its web "Upload files" button, and too big for phone code editors like Spck (5MB) or Acode (1MB) to handle at all — a real problem for a project meant to be pushed from a phone.
+
+The fix is storage-only, not a code change to FFmpeg: the binary is split into two ordered pieces, `vendor/ffmpeg/core/ffmpeg-core-part1.bin` (~16.1MB) and `ffmpeg-core-part2.bin` (~16.1MB), each comfortably under the 25MB web-upload ceiling. At runtime, `toBlobURLFromParts()` in `js/utils.js` fetches both and concatenates them back into one buffer with `new Blob([part1, part2])` before FFmpeg ever sees it. This was verified two ways before shipping: a SHA-256 checksum of the two parts concatenated together matches the original single file exactly, and the reassembled buffer was fed into the real `ffmpeg-core.wasm` loader under Node and used to run a real encode — same `ffmpeg version 5.1.4`, same working output, byte-for-byte the same core.
+
+**If you ever need the single `.wasm` file back** (e.g. deploying somewhere without a 25MB limit), reassemble it locally:
+```bash
+cat vendor/ffmpeg/core/ffmpeg-core-part1.bin vendor/ffmpeg/core/ffmpeg-core-part2.bin > vendor/ffmpeg/core/ffmpeg-core.wasm
+```
+and point `CORE_WASM_PARTS` in `js/compressors/ffmpeg-engine.js` back to a single `toBlobURL()` call instead.
 
 ### 2. Video/audio bitrate was 1000x too high
 `compressMedia()` correctly computed a bitrate in **bits/second** (`targetBytes * 8 / duration`), then built the ffmpeg flag as `` `${bitrate}k` ``. FFmpeg's `k` suffix means ×1000 — so a correctly-computed value like `313000` (313 kbps) became the string `"313000k"`, i.e. **313,000 kbps (≈313 Mbps)**. That's an effectively unlimited bitrate ceiling, so `-maxrate`/`-bufsize` did nothing and target-size compression for video/audio couldn't have worked even once FFmpeg loaded.
@@ -107,7 +116,7 @@ A target size is a goal, not a guarantee — an already-compressed file has litt
 
 ## Deploying (GitHub Pages)
 
-1. Push every file in this folder to your repository's default branch, root of the repo (not a subfolder) — the relative paths in `index.html` (`./vendor/...`, `./js/...`) depend on that.
+1. Push every file in this folder to your repository's default branch, root of the repo (not a subfolder) — the relative paths in `index.html` (`./vendor/...`, `./js/...`) depend on that. Every single file in this project, including both `ffmpeg-core-part*.bin` pieces, is under GitHub's 25MB web-upload limit, so this can be done entirely from a phone browser via **Add file → Upload files**, dragging in the whole folder tree (GitHub's uploader preserves the folder structure) — no git command line required.
 2. Repo → **Settings → Pages → Deploy from a branch** → branch `main`, folder `/ (root)`.
 3. Open the URL GitHub gives you. No build step, no `npm install` needed to run it.
 
@@ -131,7 +140,7 @@ js/
   workers/
     image-worker.js         the actual image compression algorithm
 vendor/
-  ffmpeg/                  ffmpeg.js + 814.ffmpeg.js + core/ (real files, MIT/GPL — see THIRD_PARTY_LICENSES.md)
+  ffmpeg/                  ffmpeg.js + 814.ffmpeg.js + core/ (ffmpeg-core.js + ffmpeg-core-part1.bin/-part2.bin; real files, MIT/GPL — see THIRD_PARTY_LICENSES.md)
   pdf-lib/                 pdf-lib.min.js (MIT)
   fonts/                   Inter, Latin subset (OFL-1.1)
 ```
