@@ -4,6 +4,9 @@ A browser-based file compressor. Images, video, audio, and PDFs are re-encoded *
 
 **Live once deployed:** `https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/`
 
+or
+
+https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
 ---
 
 ## What changed from the original project
