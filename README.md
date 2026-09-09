@@ -2,7 +2,7 @@
 
 A browser-based file compressor. Images, video, audio, and PDFs are re-encoded **inside the browser tab that opens this page** — nothing is ever uploaded, because the app has no upload endpoint to send anything to.
 
-**Live once deployed:** `https://<your-username>.github.io/<your-repo>/`
+**Live once deployed:** `https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/`
 
 ---
 
