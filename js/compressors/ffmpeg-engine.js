@@ -16,10 +16,18 @@
 //   same-origin, which sidesteps any environment where fetch() of a plain
 //   relative path behaves unexpectedly (e.g. some static-file hosts).
 
-import { toBlobURL } from '../utils.js';
+import { toBlobURL, toBlobURLFromParts } from '../utils.js';
 
 const CORE_JS = new URL('../../vendor/ffmpeg/core/ffmpeg-core.js', import.meta.url).href;
-const CORE_WASM = new URL('../../vendor/ffmpeg/core/ffmpeg-core.wasm', import.meta.url).href;
+// ffmpeg-core.wasm ships as two parts (see README "Why the .wasm is split
+// in two") so it can be uploaded through GitHub's web UI, which caps
+// direct uploads at 25MB. toBlobURLFromParts() fetches both and
+// concatenates them back into the exact original file before ffmpeg ever
+// sees it — the split is a repo-storage detail, invisible at runtime.
+const CORE_WASM_PARTS = [
+  new URL('../../vendor/ffmpeg/core/ffmpeg-core-part1.bin', import.meta.url).href,
+  new URL('../../vendor/ffmpeg/core/ffmpeg-core-part2.bin', import.meta.url).href,
+];
 
 let instance = null;
 let loadingPromise = null;
@@ -46,7 +54,7 @@ export async function getFFmpeg(onLog) {
 
     const [coreURL, wasmURL] = await Promise.all([
       toBlobURL(CORE_JS, 'text/javascript'),
-      toBlobURL(CORE_WASM, 'application/wasm'),
+      toBlobURLFromParts(CORE_WASM_PARTS, 'application/wasm'),
     ]);
 
     await ffmpeg.load({ coreURL, wasmURL });
