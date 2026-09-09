@@ -74,6 +74,29 @@ export async function toBlobURL(localUrl, mimeType) {
   return URL.createObjectURL(new Blob([buf], { type: mimeType }));
 }
 
+// Same idea, but reassembles a file that was split into several parts
+// before being committed to the repo. ffmpeg-core.wasm is ~32MB — over
+// GitHub's 25MB web-upload limit, and over what phone-based editors like
+// Spck/Acode can handle — so it ships as ordered byte-range parts and gets
+// concatenated back into one buffer here. The result is byte-identical to
+// the original single .wasm (verified with a checksum before this shipped).
+// Order matters and is preserved: Promise.all() resolves in the same order
+// the input array was given, regardless of which fetch finishes first.
+export async function toBlobURLFromParts(localUrls, mimeType) {
+  const buffers = await Promise.all(
+    localUrls.map(async (u) => {
+      const resolved = new URL(u, document.baseURI);
+      if (resolved.origin !== location.origin) {
+        throw new Error('toBlobURLFromParts only accepts same-origin local assets, refusing: ' + resolved.href);
+      }
+      const res = await fetch(resolved.href);
+      if (!res.ok) throw new Error(`Could not load local asset part: ${u}`);
+      return res.arrayBuffer();
+    })
+  );
+  return URL.createObjectURL(new Blob(buffers, { type: mimeType }));
+}
+
 // Reliable download: object URLs must not be revoked before the browser has
 // actually started the download, but leaving them forever leaks memory for
 // a session that compresses many files. A short delay covers every browser
@@ -122,4 +145,4 @@ export function extensionForMime(mime) {
     'application/pdf': 'pdf', 'application/gzip': 'gz',
   };
   return map[mime] || 'bin';
-}
+                     }
