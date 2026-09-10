@@ -9,7 +9,7 @@
 // "1333333k" instead of "1333k", a target 1000x too high. That's the
 // bpsToKFlag() divide-by-1000 below; skipping it reproduces that bug.
 
-import { probeMediaDuration, baseName, uid } from '../utils.js';
+import { probeMediaDuration, baseName, uid, checkMediaFileSize } from '../utils.js';
 import { getFFmpeg, bpsToKFlag, cleanupFiles } from './ffmpeg-engine.js';
 
 const MIN_VIDEO_BPS = 40_000;
@@ -32,6 +32,9 @@ function pickHeightCap(videoBps, currentHeight) {
 }
 
 export async function compressVideo(file, { targetBytes, format }, onProgress) {
+  const sizeCheck = checkMediaFileSize(file);
+  if (!sizeCheck.ok) throw new Error(sizeCheck.message);
+
   if (targetBytes >= file.size) {
     return { useOriginal: true, status: 'Already at or under your target size — left unchanged.' };
   }
