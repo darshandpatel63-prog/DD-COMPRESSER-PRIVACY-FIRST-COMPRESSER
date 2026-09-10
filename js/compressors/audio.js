@@ -8,7 +8,7 @@
 // truncated or corrupt file, so WAV takes a different, DSP-appropriate
 // path instead of pretending a bitrate flag will help.
 
-import { probeMediaDuration, baseName, uid } from '../utils.js';
+import { probeMediaDuration, baseName, uid, checkMediaFileSize } from '../utils.js';
 import { getFFmpeg, bpsToKFlag, cleanupFiles } from './ffmpeg-engine.js';
 
 const CODEC_BY_FORMAT = {
@@ -18,6 +18,9 @@ const CODEC_BY_FORMAT = {
 };
 
 export async function compressAudio(file, { targetBytes, format }, onProgress) {
+  const sizeCheck = checkMediaFileSize(file);
+  if (!sizeCheck.ok) throw new Error(sizeCheck.message);
+
   if (targetBytes >= file.size) {
     return { useOriginal: true, status: 'Already at or under your target size — left unchanged.' };
   }
