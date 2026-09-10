@@ -145,4 +145,35 @@ export function extensionForMime(mime) {
     'application/pdf': 'pdf', 'application/gzip': 'gz',
   };
   return map[mime] || 'bin';
-                     }
+}
+
+// FFmpeg's WASM build is WASM32, which has a hard 4GiB address-space
+// ceiling no matter how much RAM the device has — and that space has to
+// hold the input file, FFmpeg's own working/decode memory, AND the output
+// file all at once. A 3GB+ source video (the real case that hung this app
+// on a phone) has no realistic chance of fitting, and simply calling
+// file.arrayBuffer() on something that size is itself a very large,
+// failure-prone allocation on a phone before FFmpeg is ever reached. These
+// limits are deliberately conservative rather than the theoretical
+// ceiling, because a phone's browser tab has far less headroom than a
+// desktop's.
+export const MEDIA_SIZE_LIMITS = {
+  HARD_MAX_BYTES: 1.75 * 1024 ** 3, // refuse outright above this
+  WARN_ABOVE_BYTES: 600 * 1024 ** 2, // still allowed, but flagged as risky/slow
+};
+
+export function checkMediaFileSize(file) {
+  if (file.size > MEDIA_SIZE_LIMITS.HARD_MAX_BYTES) {
+    return {
+      ok: false,
+      message: `This file is ${formatBytes(file.size)} — over the ${formatBytes(MEDIA_SIZE_LIMITS.HARD_MAX_BYTES)} limit this browser-based engine can reliably hold in memory at once (FFmpeg's WebAssembly build has a hard 4GB address-space ceiling that has to fit the input, working memory, and output together). Trim or split this file first, or compress it with a native app instead.`,
+    };
+  }
+  if (file.size > MEDIA_SIZE_LIMITS.WARN_ABOVE_BYTES) {
+    return {
+      ok: true,
+      warning: `${formatBytes(file.size)} is large for in-browser processing — this may be slow and, on a phone with limited memory, could fail partway through. Keep this tab in the foreground while it runs.`,
+    };
+  }
+  return { ok: true };
+}
