@@ -1,4 +1,4 @@
-import { detectCategory, parseTargetBytes, downloadBlob, uid, formatBytes } from './utils.js';
+import { detectCategory, parseTargetBytes, downloadBlob, uid, formatBytes, checkMediaFileSize } from './utils.js';
 import { compressImage } from './compressors/image.js';
 import { compressVideo } from './compressors/video.js';
 import { compressAudio } from './compressors/audio.js';
@@ -44,6 +44,16 @@ function addFiles(fileListArg) {
     state.el = el;
     fileListEl.appendChild(el);
     files.set(id, state);
+
+    // Catch a hopeless video/audio size upfront — right when the file is
+    // added — instead of only discovering it after the user taps Compress
+    // and waits. This is what should have caught the 3GB+ video that
+    // previously hung the tab.
+    if (category === 'video' || category === 'audio') {
+      const check = checkMediaFileSize(file);
+      if (!check.ok) showError(el, check.message);
+      else if (check.warning) showToast(check.warning, 'danger');
+    }
   }
   updateCompressAllState();
 }
@@ -103,9 +113,26 @@ async function runCompression(state) {
 }
 
 // ---- drag & drop / picker ----
-dropZone.addEventListener('click', () => fileInput.click());
-dropZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } });
-fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+// fileInput.value is cleared both before opening and (via finally) after
+// handling a selection — if it were ever left set to a previous file, some
+// browsers won't fire 'change' again for that same file, which looks
+// exactly like "tapping the drop zone stopped doing anything."
+function openPicker() {
+  fileInput.value = '';
+  fileInput.click();
+}
+dropZone.addEventListener('click', openPicker);
+dropZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); } });
+fileInput.addEventListener('change', () => {
+  try {
+    addFiles(fileInput.files);
+  } catch (err) {
+    console.error(err);
+    showToast('Could not read the selected file(s): ' + (err.message || err), 'danger');
+  } finally {
+    fileInput.value = '';
+  }
+});
 
 ['dragenter', 'dragover'].forEach((evt) => dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); }));
 ['dragleave', 'drop'].forEach((evt) => dropZone.addEventListener(evt, (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); }));
