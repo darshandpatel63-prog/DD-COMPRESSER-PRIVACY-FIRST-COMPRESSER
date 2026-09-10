@@ -18,18 +18,64 @@
 // correctly show little or no reduction here — that's the honest result
 // for a document with nothing large left to shrink, not a bug.
 //
-// Scope, stated plainly: only DCTDecode (JPEG) images without a soft mask
-// are recompressed. PNG-style (FlateDecode raw bitmap) images and images
-// with an alpha soft mask are left exactly as they are, rather than risk
-// corrupting a transparency effect or a color space this code hasn't
-// verified against. See README "PDF engine" for the full writeup.
+// Scope, stated plainly: only DCTDecode (JPEG) images in an RGB or
+// Grayscale colorspace, without a soft mask, are recompressed.
+//
+// CMYK (and Separation/DeviceN "spot color") images are deliberately
+// SKIPPED, left byte-identical to the original, even though skipping them
+// can mean very little size reduction on a CMYK-heavy document. This was
+// not a theoretical worry: a real 212MB scanned anatomy textbook's
+// embedded diagrams — genuine Adobe YCCK/CMYK JPEGs (confirmed by their
+// Adobe APP14 marker, transform=2) — came out of the Canvas re-encode
+// pipeline almost solid black. Comparing the raw extracted stream against
+// the same page rendered by a proper PDF renderer (poppler) confirmed the
+// original data is only correct once a PDF/Adobe-aware CMYK inversion is
+// applied — a step a generic browser JPEG decode of a standalone stream
+// does not reliably perform. Rather than ship a hand-rolled CMYK-to-RGB
+// correction this code has no way to verify against a real browser, CMYK
+// images are treated the same as SMask images: left completely untouched.
+// PNG-style (FlateDecode raw bitmap) images are excluded for the same
+// reason as before. See README "PDF engine" for the full writeup.
 
 import { baseName } from '../utils.js';
 
-const { PDFDocument, PDFName, PDFDict, PDFRawStream, PDFNumber } = window.PDFLib || {};
+const { PDFDocument, PDFName, PDFDict, PDFArray, PDFRef, PDFRawStream, PDFNumber } = window.PDFLib || {};
+
+function resolveRef(pdfDoc, obj, depth = 0) {
+  while (obj instanceof PDFRef && depth < 6) {
+    obj = pdfDoc.context.lookup(obj);
+    depth++;
+  }
+  return obj;
+}
+
+// Returns the number of color components (1=Gray, 3=RGB, 4=CMYK/spot), or
+// null if it can't be determined — treated as "don't touch it" by the
+// caller, same as a confirmed CMYK result.
+function colorSpaceComponents(pdfDoc, csRaw) {
+  const cs = resolveRef(pdfDoc, csRaw);
+  if (!cs) return null;
+  const name = cs.toString ? cs.toString() : '';
+  if (name === '/DeviceCMYK') return 4;
+  if (name === '/DeviceRGB' || name === '/CalRGB') return 3;
+  if (name === '/DeviceGray' || name === '/CalGray') return 1;
+  if (cs instanceof PDFArray) {
+    const first = resolveRef(pdfDoc, cs.get(0));
+    const fname = first?.toString ? first.toString() : '';
+    if (fname === '/ICCBased') {
+      const iccStream = resolveRef(pdfDoc, cs.get(1));
+      const n = resolveRef(pdfDoc, iccStream?.dict?.get(PDFName.of('N')));
+      return n ? Number(n.toString()) : null;
+    }
+    if (fname === '/Indexed') return colorSpaceComponents(pdfDoc, cs.get(1));
+    if (fname === '/DeviceN' || fname === '/Separation') return 4; // spot-color inks: CMYK-adjacent, same risk
+  }
+  return null;
+}
 
 function findRecompressibleImages(pdfDoc) {
   const found = [];
+  let skippedCmyk = 0;
   for (const page of pdfDoc.getPages()) {
     let resources;
     try { resources = page.node.Resources(); } catch { continue; }
@@ -45,14 +91,17 @@ function findRecompressibleImages(pdfDoc) {
       const subtype = stream.dict.get(PDFName.of('Subtype'));
       const filter = stream.dict.get(PDFName.of('Filter'));
       const smask = stream.dict.get(PDFName.of('SMask'));
-      if (subtype && subtype.toString() === '/Image' && filter && filter.toString() === '/DCTDecode' && !smask) {
-        const w = Number(stream.dict.get(PDFName.of('Width'))?.toString() || 0);
-        const h = Number(stream.dict.get(PDFName.of('Height'))?.toString() || 0);
-        found.push({ stream, original: stream.getContents(), origWidth: w || null, origHeight: h || null });
-      }
+      if (!(subtype && subtype.toString() === '/Image' && filter && filter.toString() === '/DCTDecode' && !smask)) continue;
+
+      const components = colorSpaceComponents(pdfDoc, stream.dict.get(PDFName.of('ColorSpace')));
+      if (components !== 1 && components !== 3) { skippedCmyk++; continue; }
+
+      const w = Number(stream.dict.get(PDFName.of('Width'))?.toString() || 0);
+      const h = Number(stream.dict.get(PDFName.of('Height'))?.toString() || 0);
+      found.push({ stream, original: stream.getContents(), origWidth: w || null, origHeight: h || null });
     }
   }
-  return found;
+  return { found, skippedCmyk };
 }
 
 async function reencodeOne(image, quality, maxDim) {
@@ -102,8 +151,14 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
   const bytes = new Uint8Array(await file.arrayBuffer());
   const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
 
-  const images = findRecompressibleImages(pdfDoc);
+  const { found: images, skippedCmyk } = findRecompressibleImages(pdfDoc);
   if (images.length === 0) {
+    if (skippedCmyk > 0) {
+      return {
+        useOriginal: true,
+        status: `Found ${skippedCmyk} embedded image${skippedCmyk === 1 ? '' : 's'}, but all of them use a CMYK/spot-color colorspace — common in print-sourced scans — which this engine deliberately leaves untouched rather than risk incorrect colors (see README "PDF engine"). Nothing else in this PDF was large enough to meaningfully compress.`,
+      };
+    }
     return {
       useOriginal: true,
       status: 'No recompressible embedded photos found — this PDF is mostly text/vector content, so DD Compressor leaves it untouched rather than rasterizing pages (which would destroy the selectable text).',
@@ -221,12 +276,13 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
   }
 
   const blob = new Blob([outBytes], { type: 'application/pdf' });
+  const cmykNote = skippedCmyk > 0 ? `; ${skippedCmyk} CMYK image${skippedCmyk === 1 ? '' : 's'} left untouched` : '';
   return {
     useOriginal: false,
     blob,
     filename: `${baseName(file.name)}-compressed.pdf`,
     hitTarget: outBytes.length <= targetBytes,
-    detail: `${images.length} embedded image${images.length === 1 ? '' : 's'} recompressed at ${Math.round(bestQuality * 100)}% quality`,
+    detail: `${images.length} embedded image${images.length === 1 ? '' : 's'} recompressed at ${Math.round(bestQuality * 100)}% quality${cmykNote}`,
     status: outBytes.length <= targetBytes
       ? 'Target reached — text and vector content untouched.'
       : 'Target not fully reached without over-compressing the embedded photos — showing the best result. Text and vector content are untouched either way.',
