@@ -18,12 +18,17 @@ jobs:
         with:
           node-version: '18'
 
+      - name: 📁 વેબ ફાઈલો સેટઅપ કરો (Fix for webDir Error)
+        run: |
+          mkdir www
+          rsync -a --exclude='www' --exclude='.git' --exclude='.github' ./ www/
+
       - name: ⚡ Capacitor ઇન્સ્ટોલ કરો અને એન્ડ્રોઇડ પ્રોજેક્ટ બનાવો
         run: |
           npm init -y
           npm install -g @capacitor/cli
           npm install @capacitor/core @capacitor/android
-          npx cap init "DD Compresser" "com.darshan.compresser" --web-dir .
+          npx cap init "DD Compresser" "com.darshan.compresser" --web-dir www
           npx cap add android
           npx cap sync android
 
