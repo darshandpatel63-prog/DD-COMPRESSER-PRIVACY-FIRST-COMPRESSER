@@ -1,0 +1,44 @@
+name: 🚀 Build Android APK (DD-Compresser)
+
+on:
+  workflow_dispatch: # આનાથી તમે જાતે બટન દબાવીને APK બનાવી શકશો
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 ચેકઆઉટ કોડ (Checkout Repository)
+        uses: actions/checkout@v3
+
+      - name: ⚙️ Node.js સેટઅપ
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: ⚡ Capacitor ઇન્સ્ટોલ કરો અને એન્ડ્રોઇડ પ્રોજેક્ટ બનાવો
+        run: |
+          npm install -g @capacitor/cli @capacitor/core
+          npm install @capacitor/android
+          npx cap init "DD Compresser" "com.darshan.compresser" --web-dir .
+          npx cap add android
+          npx cap sync android
+
+      - name: ☕ Java JDK 17 સેટઅપ
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 🏗️ APK બિલ્ડ કરો (Compile Android)
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: 📦 ફાઇનલ APK ડાઉનલોડ માટે આપો
+        uses: actions/upload-artifact@v3
+        with:
+          name: DD-Compresser-App
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          
