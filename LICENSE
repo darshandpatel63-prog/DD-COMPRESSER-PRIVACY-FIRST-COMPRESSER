@@ -1,27 +1,106 @@
-MIT License
+DD Compressor Community License v1.0
+Copyright (c) 2026 Darshan Patel — github.com/darshandpatel63-prog
+(If this isn't the name you want listed, replace it — the GitHub link is the part that matters most.)
 
-Copyright (c) 2026 DD Compressor contributors
+===============================================================================
+THE SHORT VERSION
+===============================================================================
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to
-deal in the Software without restriction, including without limitation the
-rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
-sell copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This project is free. Use it, learn from it, remix it, build on it — for
+yourself, for a friend, for a class project, for a non-profit, for
+literally anything that isn't about selling this software itself. The one
+thing this license asks for is a little credit, and a promise not to turn
+around and sell what was given away for free.
 
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
+===============================================================================
+WHAT YOU CAN DO
+===============================================================================
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
+You're welcome to:
 
----
+  - Use DD Compressor for any personal, educational, non-profit, or other
+    non-commercial purpose, with no restrictions.
+  - Copy, study, and modify the source code.
+  - Redistribute the original or your own modified version, as long as you
+    follow the two rules below.
+  - Use it inside a larger project of your own — including one you charge
+    for — as long as DD Compressor (or a modified version of it) isn't
+    itself the product being sold. This tool can be a free ingredient in
+    something bigger; it can't become someone else's paid app.
 
-This license covers the original code of this project (index.html, css/,
-js/). Vendored third-party libraries under vendor/ keep their own original
-licenses — see THIRD_PARTY_LICENSES.md.
+===============================================================================
+TWO RULES
+===============================================================================
+
+RULE 1 — KEEP THE CREDIT.
+Any copy or substantial portion of this software, modified or not, must
+keep this notice and clearly credit the original author, linking back to
+the original repository:
+
+    Originally created by Darshan Patel
+    https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER
+
+This can live in your README, an "About" or credits screen, or the source
+code itself — it just has to be there, intact, and not buried.
+
+RULE 2 — DON'T SELL IT.
+You may not charge money — in INR, USD, or any other currency — for this
+software or a modified version of it, whether as a one-time sale, a
+"premium" tier, a subscription, or behind any paywall, without the
+original author's separate written permission. Free means free for
+everyone, indefinitely — not free until someone decides to charge for it.
+
+===============================================================================
+IF RULE 2 GETS BROKEN
+===============================================================================
+
+Anyone who sells, sublicenses for a fee, or otherwise commercially charges
+for this software or a modified version of it, without written permission,
+agrees to pay the original author INR 5,00,000 (or the equivalent in USD
+or the violator's local currency at the time of the violation) as
+compensation, in addition to any other legal remedy available.
+
+(That figure is a starting point, not a legal absolute — see the honest
+note at the end of this file. Change it to whatever amount you actually
+want if you're the one editing this.)
+
+This clause isn't here to scare off anyone using or sharing the project in
+good faith. It exists so "free for everyone" keeps meaning that.
+
+===============================================================================
+NO WARRANTY
+===============================================================================
+
+This software is provided "AS IS", without warranty of any kind, express
+or implied, including but not limited to the warranties of
+merchantability, fitness for a particular purpose, and noninfringement. In
+no event shall the author be liable for any claim, damages, or other
+liability arising from the use of this software.
+
+===============================================================================
+WANT TO USE THIS COMMERCIALLY?
+===============================================================================
+
+If you'd genuinely like to build a paid product around this code, that's a
+conversation, not a wall. Reach out via GitHub:
+https://github.com/darshandpatel63-prog
+
+===============================================================================
+AN HONEST NOTE (NOT LEGAL ADVICE)
+===============================================================================
+
+This license was written to be clear and to sound like what it protects —
+a free, fair project — rather than to be intimidating. It isn't a
+substitute for an actual lawyer's review, especially:
+
+  - The exact penalty amount, and whether it's enforceable at face value.
+    Courts in many places — including India, under Section 74 of the
+    Indian Contract Act — often treat a stated penalty as a ceiling for
+    "reasonable compensation" rather than an automatic exact payout.
+  - Enforcement across borders, since this software can be downloaded and
+    used anywhere, under different countries' laws.
+
+If this project ever becomes commercially significant, or an actual
+dispute comes up, get a real license reviewed by a lawyer licensed where
+you live. Until then, this document says clearly what it means: please
+don't sell this, please leave the credit, and thank you for using it.
