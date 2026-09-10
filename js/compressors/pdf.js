@@ -46,31 +46,38 @@ function findRecompressibleImages(pdfDoc) {
       const filter = stream.dict.get(PDFName.of('Filter'));
       const smask = stream.dict.get(PDFName.of('SMask'));
       if (subtype && subtype.toString() === '/Image' && filter && filter.toString() === '/DCTDecode' && !smask) {
-        found.push({ stream, original: stream.getContents() });
+        const w = Number(stream.dict.get(PDFName.of('Width'))?.toString() || 0);
+        const h = Number(stream.dict.get(PDFName.of('Height'))?.toString() || 0);
+        found.push({ stream, original: stream.getContents(), origWidth: w || null, origHeight: h || null });
       }
     }
   }
   return found;
 }
 
-async function decode(bytes) {
-  return createImageBitmap(new Blob([bytes], { type: 'image/jpeg' }));
-}
-
 async function reencodeOne(image, quality, maxDim) {
-  const bitmap = await decode(image.original);
-  let w = bitmap.width, h = bitmap.height;
-  if (Math.max(w, h) > maxDim) {
-    const scale = maxDim / Math.max(w, h);
-    w = Math.max(1, Math.round(w * scale));
-    h = Math.max(1, Math.round(h * scale));
+  let targetW, targetH;
+  if (image.origWidth && image.origHeight && Math.max(image.origWidth, image.origHeight) > maxDim) {
+    const scale = maxDim / Math.max(image.origWidth, image.origHeight);
+    targetW = Math.max(1, Math.round(image.origWidth * scale));
+    targetH = Math.max(1, Math.round(image.origHeight * scale));
   }
+  // When we already know (from the PDF's own /Width /Height, no decode
+  // needed) that we're downscaling, ask createImageBitmap to resize during
+  // decode rather than decoding at full resolution and scaling afterward.
+  // For a high-DPI scanned page this measurably skips work instead of
+  // discarding it after the fact — the difference that matters for a
+  // document with hundreds of embedded scans.
+  const bitmap = targetW
+    ? await createImageBitmap(new Blob([image.original], { type: 'image/jpeg' }), { resizeWidth: targetW, resizeHeight: targetH, resizeQuality: 'medium' })
+    : await createImageBitmap(new Blob([image.original], { type: 'image/jpeg' }));
+  const w = targetW || bitmap.width, h = targetH || bitmap.height;
   const canvas = new OffscreenCanvas(w, h);
   const ctx = canvas.getContext('2d');
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close?.();
   const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality });
-  return new Uint8Array(await blob.arrayBuffer());
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), w, h };
 }
 
 function applyBytes(image, bytes, w, h) {
@@ -91,7 +98,7 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
     return { useOriginal: true, status: 'Already at or under your target size — left unchanged.' };
   }
 
-  onProgress(5, 'Opening PDF…');
+  onProgress(2, 'Opening PDF…');
   const bytes = new Uint8Array(await file.arrayBuffer());
   const pdfDoc = await PDFDocument.load(bytes, { ignoreEncryption: true });
 
@@ -105,55 +112,106 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
 
   const originalImageBytes = images.reduce((s, i) => s + i.original.length, 0);
   const overheadBytes = Math.max(0, file.size - originalImageBytes);
-
-  // Fast estimate loop: recompress in-memory and sum byte counts, without
-  // paying for a full PDF serialization on every trial.
-  async function tryQuality(quality, maxDim) {
-    let sum = 0;
-    let i = 0;
-    for (const image of images) {
-      const out = await reencodeOne(image, quality, maxDim);
-      image._trial = out;
-      sum += out.length;
-      i++;
-      onProgress(10 + Math.round((i / images.length) * 60), `Recompressing embedded image ${i}/${images.length}…`);
-    }
-    return sum;
-  }
-
   const targetImageBytes = Math.max(1024, targetBytes - overheadBytes);
-  let lo = 0.12, hi = 0.85, bestQuality = null, bestMaxDim = 2200, bestEstimate = Infinity;
+  const targetRatio = targetImageBytes / originalImageBytes;
   const dimLadder = [2200, 1600, 1100];
 
-  for (const maxDim of dimLadder) {
-    lo = 0.12; hi = 0.85;
-    let bestAtDim = null;
-    for (let iter = 0; iter < 5; iter++) {
-      const q = (lo + hi) / 2;
-      const est = await tryQuality(q, maxDim);
-      if (est <= targetImageBytes) { lo = q; bestAtDim = { quality: q, estimate: est }; }
-      else { hi = q; }
+  // Many-image documents (scanned books, multi-hundred-page study PDFs)
+  // used to run the full grid search — up to 3 dimension levels x 5
+  // quality guesses, EVERY ONE OF WHICH re-encoded every single image —
+  // against the entire document. For a 906-image anatomy textbook that
+  // meant up to ~14,500 encode operations and a progress bar that visibly
+  // reset to ~10% at the start of each of those 16 passes, which looks
+  // exactly like "it finishes, then restarts" even though it was actually
+  // working the whole time. Fixed here two ways: (1) above SAMPLE_THRESHOLD
+  // images, the quality/dimension search runs against a small spread-out
+  // SAMPLE instead of the whole document, then applies that setting in
+  // exactly one full pass — not sixteen; (2) progress is now cumulative
+  // across the whole operation instead of restarting every trial.
+  const SAMPLE_THRESHOLD = 30;
+  const manyImages = images.length > SAMPLE_THRESHOLD;
+
+  let bestQuality, bestMaxDim;
+
+  if (!manyImages) {
+    let bestEstimate = Infinity;
+    for (const maxDim of dimLadder) {
+      let lo = 0.12, hi = 0.85, bestAtDim = null;
+      for (let iter = 0; iter < 5; iter++) {
+        const q = (lo + hi) / 2;
+        let sum = 0;
+        for (let i = 0; i < images.length; i++) {
+          const out = await reencodeOne(images[i], q, maxDim);
+          images[i]._trial = out;
+          images[i]._trialKey = `${q}:${maxDim}`;
+          sum += out.bytes.length;
+        }
+        onProgress(5 + Math.round(((dimLadder.indexOf(maxDim) * 5 + iter + 1) / (dimLadder.length * 5)) * 55), `Searching best quality…`);
+        if (sum <= targetImageBytes) { lo = q; bestAtDim = { quality: q, estimate: sum }; } else { hi = q; }
+      }
+      if (bestAtDim) { bestQuality = bestAtDim.quality; bestMaxDim = maxDim; bestEstimate = bestAtDim.estimate; break; }
+      if (bestEstimate === Infinity) { bestQuality = lo; bestMaxDim = maxDim; }
     }
-    if (bestAtDim) { bestQuality = bestAtDim.quality; bestMaxDim = maxDim; bestEstimate = bestAtDim.estimate; break; }
-    if (bestEstimate === Infinity) { bestQuality = lo; bestMaxDim = maxDim; }
+  } else {
+    // Spread the sample across the whole document (not just the first N
+    // pages) so a document that starts with a plain cover page doesn't
+    // skew the estimate for the denser pages that follow.
+    const SAMPLE_SIZE = Math.min(images.length, 10);
+    const sampleIdx = [...new Set(Array.from({ length: SAMPLE_SIZE }, (_, k) => Math.floor((k * images.length) / SAMPLE_SIZE)))];
+    const sample = sampleIdx.map((i) => images[i]);
+    const sampleOriginalBytes = sample.reduce((s, i) => s + i.original.length, 0);
+
+    onProgress(4, `Found ${images.length} embedded images — estimating the right quality from a sample first…`);
+    let bestEstimate = Infinity;
+    searchDone:
+    for (const maxDim of dimLadder) {
+      let lo = 0.12, hi = 0.85, bestAtDim = null;
+      for (let iter = 0; iter < 5; iter++) {
+        const q = (lo + hi) / 2;
+        let sum = 0;
+        for (const img of sample) {
+          const out = await reencodeOne(img, q, maxDim);
+          img._trial = out;
+          img._trialKey = `${q}:${maxDim}`;
+          sum += out.bytes.length;
+        }
+        const ratio = sum / sampleOriginalBytes;
+        if (ratio <= targetRatio) { lo = q; bestAtDim = { quality: q, estimate: ratio }; } else { hi = q; }
+      }
+      if (bestAtDim) { bestQuality = bestAtDim.quality; bestMaxDim = maxDim; bestEstimate = bestAtDim.estimate; break searchDone; }
+      if (bestEstimate === Infinity) { bestQuality = lo; bestMaxDim = maxDim; }
+    }
+
+    // One real pass, timed after the first few images so the "time
+    // remaining" estimate is based on this device's actual speed rather
+    // than a guess.
+    const fullPassStart = performance.now();
+    let done = 0;
+    for (const image of images) {
+      const out = await reencodeOne(image, bestQuality, bestMaxDim);
+      image._trial = out;
+      image._trialKey = `${bestQuality}:${bestMaxDim}`;
+      done++;
+      if (done === 5) {
+        const perImageMs = (performance.now() - fullPassStart) / 5;
+        const remainingMs = perImageMs * (images.length - done);
+        const mins = Math.max(1, Math.round(remainingMs / 60000));
+        onProgress(15, `Recompressing ${images.length} images — roughly ${mins} minute${mins === 1 ? '' : 's'} left. Keep this tab open.`);
+      } else if (done % 10 === 0 || done === images.length) {
+        onProgress(10 + Math.round((done / images.length) * 75), `Recompressing embedded image ${done}/${images.length}…`);
+      }
+    }
   }
 
-  onProgress(75, 'Rebuilding PDF…');
-  await tryQuality(bestQuality, bestMaxDim); // final pass at the chosen settings
+  onProgress(88, 'Rebuilding PDF…');
+  const finalKey = `${bestQuality}:${bestMaxDim}`;
   for (const image of images) {
-    const bitmap = await decode(image.original);
-    let w = bitmap.width, h = bitmap.height;
-    bitmap.close?.();
-    if (Math.max(w, h) > bestMaxDim) {
-      const scale = bestMaxDim / Math.max(w, h);
-      w = Math.max(1, Math.round(w * scale));
-      h = Math.max(1, Math.round(h * scale));
-    }
-    applyBytes(image, image._trial, w, h);
+    if (image._trialKey !== finalKey) image._trial = await reencodeOne(image, bestQuality, bestMaxDim);
+    applyBytes(image, image._trial.bytes, image._trial.w, image._trial.h);
   }
 
   const outBytes = await pdfDoc.save({ useObjectStreams: true });
-  onProgress(95, 'Finishing…');
+  onProgress(97, 'Finishing…');
 
   if (outBytes.length >= file.size) {
     return {
