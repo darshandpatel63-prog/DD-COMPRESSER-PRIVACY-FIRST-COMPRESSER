@@ -1,12 +1,12 @@
+
+https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
+---
 # DD Compressor — Privacy First
 
 A browser-based file compressor. Images, video, audio, and PDFs are re-encoded **inside the browser tab that opens this page** — nothing is ever uploaded, because the app has no upload endpoint to send anything to.
 
-**Live once deployed:** `https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/`
+**Live once deployed:** `https://<your-username>.github.io/<your-repo>/`
 
-or
-
-https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
 ---
 
 ## What changed from the original project
@@ -25,20 +25,9 @@ new Worker(new URL(e.p + e.u(814), e.b))   // e.p = directory of ffmpeg.js itsel
 
 If `ffmpeg.js` is loaded from a CDN, `e.p` becomes the CDN's URL, and the browser refuses to construct a Worker whose script lives on a different origin than the page — which is exactly the original error: *"Failed to construct 'Worker': Script at https://cdn.jsdelivr.net/.../814.ffmpeg.js cannot be accessed from origin https://....github.io"*.
 
-**Fix:** `vendor/ffmpeg/ffmpeg.js` and `vendor/ffmpeg/814.ffmpeg.js` are real files (downloaded from the published `@ffmpeg/ffmpeg@0.12.15` npm package, not placeholders), committed side by side, loaded via a same-origin relative `<script src="./vendor/ffmpeg/ffmpeg.js">`. The WASM core (`ffmpeg-core.js` / `ffmpeg-core.wasm`, from `@ffmpeg/core@0.12.10`) is also vendored locally and converted to `blob:` URLs before being handed to `ffmpeg.load()`, so it never depends on a CDN being reachable.
+**Fix:** `vendor/ffmpeg/ffmpeg.js` and `vendor/ffmpeg/814.ffmpeg.js` are real files (downloaded from the published `@ffmpeg/ffmpeg@0.12.15` npm package, not placeholders), committed side by side, loaded via a same-origin relative `<script src="./vendor/ffmpeg/ffmpeg.js">`. **Note this is `./vendor/ffmpeg/ffmpeg.js`, not `./ffmpeg.min.js`** — if a tool or audit flags a reference to `./ffmpeg.min.js` in this project, it's looking at the *original*, pre-rebuild file; `index.html` in this repo has never referenced that path. The WASM core (`ffmpeg-core.js` / the split `ffmpeg-core-part*.bin`, from `@ffmpeg/core@0.12.10`) is also vendored locally and converted to `blob:` URLs before being handed to `ffmpeg.load()`, so it never depends on a CDN being reachable.
 
 *Verified for real:* the exact vendored `ffmpeg-core.wasm` was loaded and executed under Node for this project (not just assumed to work) — see "Testing performed" below.
-
-### 5. Why the .wasm is split in two
-`ffmpeg-core.wasm` is ~32MB. That's over GitHub's 25MB limit for its web "Upload files" button, and too big for phone code editors like Spck (5MB) or Acode (1MB) to handle at all — a real problem for a project meant to be pushed from a phone.
-
-The fix is storage-only, not a code change to FFmpeg: the binary is split into two ordered pieces, `vendor/ffmpeg/core/ffmpeg-core-part1.bin` (~16.1MB) and `ffmpeg-core-part2.bin` (~16.1MB), each comfortably under the 25MB web-upload ceiling. At runtime, `toBlobURLFromParts()` in `js/utils.js` fetches both and concatenates them back into one buffer with `new Blob([part1, part2])` before FFmpeg ever sees it. This was verified two ways before shipping: a SHA-256 checksum of the two parts concatenated together matches the original single file exactly, and the reassembled buffer was fed into the real `ffmpeg-core.wasm` loader under Node and used to run a real encode — same `ffmpeg version 5.1.4`, same working output, byte-for-byte the same core.
-
-**If you ever need the single `.wasm` file back** (e.g. deploying somewhere without a 25MB limit), reassemble it locally:
-```bash
-cat vendor/ffmpeg/core/ffmpeg-core-part1.bin vendor/ffmpeg/core/ffmpeg-core-part2.bin > vendor/ffmpeg/core/ffmpeg-core.wasm
-```
-and point `CORE_WASM_PARTS` in `js/compressors/ffmpeg-engine.js` back to a single `toBlobURL()` call instead.
 
 ### 2. Video/audio bitrate was 1000x too high
 `compressMedia()` correctly computed a bitrate in **bits/second** (`targetBytes * 8 / duration`), then built the ffmpeg flag as `` `${bitrate}k` ``. FFmpeg's `k` suffix means ×1000 — so a correctly-computed value like `313000` (313 kbps) became the string `"313000k"`, i.e. **313,000 kbps (≈313 Mbps)**. That's an effectively unlimited bitrate ceiling, so `-maxrate`/`-bufsize` did nothing and target-size compression for video/audio couldn't have worked even once FFmpeg loaded.
@@ -54,6 +43,29 @@ and point `CORE_WASM_PARTS` in `js/compressors/ffmpeg-engine.js` back to a singl
 The original approach rendered every page to a canvas via PDF.js and rebuilt the file as a stack of images via jsPDF. It shrinks photo-heavy PDFs, but it destroys selectable text, real vector graphics, and form fields on **every** PDF, including ones that were mostly text.
 
 **Fix:** `js/compressors/pdf.js` walks the PDF's own object graph (via `pdf-lib`) and recompresses just the embedded JPEG (`/DCTDecode`) images in place — the same objects a scanner or photo-heavy export actually uses for their bulk. Text, fonts, and vector paths are untouched because their PDF objects are never touched. A resume or invoice with no photos will correctly show little or no size change; that is the honest result for a document with nothing large left to shrink.
+
+### 5. Why the .wasm is split in two
+`ffmpeg-core.wasm` is ~32MB. That's over GitHub's 25MB limit for its web "Upload files" button, and too big for phone code editors like Spck (5MB) or Acode (1MB) to handle at all — a real problem for a project meant to be pushed from a phone.
+
+The fix is storage-only, not a code change to FFmpeg: the binary is split into two ordered pieces, `vendor/ffmpeg/core/ffmpeg-core-part1.bin` (~16.1MB) and `ffmpeg-core-part2.bin` (~16.1MB), each comfortably under the 25MB web-upload ceiling. At runtime, `toBlobURLFromParts()` in `js/utils.js` fetches both and concatenates them back into one buffer with `new Blob([part1, part2])` before FFmpeg ever sees it. This was verified two ways before shipping: a SHA-256 checksum of the two parts concatenated together matches the original single file exactly, and the reassembled buffer was fed into the real `ffmpeg-core.wasm` loader under Node and used to run a real encode — same `ffmpeg version 5.1.4`, same working output, byte-for-byte the same core.
+
+**If you ever need the single `.wasm` file back** (e.g. deploying somewhere without a 25MB limit), reassemble it locally:
+```bash
+cat vendor/ffmpeg/core/ffmpeg-core-part1.bin vendor/ffmpeg/core/ffmpeg-core-part2.bin > vendor/ffmpeg/core/ffmpeg-core.wasm
+```
+and point `CORE_WASM_PARTS` in `js/compressors/ffmpeg-engine.js` back to a single `toBlobURL()` call instead.
+
+### 6. A many-hundred-image PDF looked like it kept restarting
+A 906-image, 212MB scanned textbook PDF appeared to process, then start over, several times, and never finished. It wasn't actually restarting — it was working, just far too slowly, and its own progress reporting made that look like a restart.
+
+The old search tried up to 3 dimension levels × 5 quality guesses = **15 full passes over every single embedded image**, plus one confirmation pass — 16 × 906 ≈ 14,500 encode operations. On top of that, progress was calculated as "image *i* of *N* in this pass," which resets to a low number at the start of every one of those 16 passes — so once a pass finished and the next one began, the progress bar visibly snapped back down, looking exactly like "it finished, then restarted."
+
+**Fix, in `js/compressors/pdf.js`:** documents with more than 30 recompressible images now estimate the right quality/dimension setting from a small, spread-out **sample** (at most ~10 images) instead of grid-searching the whole document, then apply that setting in exactly **one** full pass — not sixteen. Progress is now cumulative across the whole operation (never resets), and after the first few images it shows a real "~N minutes left" estimate timed from this device's own actual speed. Each image decode also now uses `createImageBitmap`'s built-in resize option when the target size is already known from the PDF's own `/Width`/`/Height` fields, instead of decoding a high-DPI scan at full resolution just to immediately shrink it. Verified with a real 50-image synthetic PDF: progress is confirmed strictly non-decreasing end to end, and the whole document is only ever fully encoded once. A many-hundred-image document will still take real time — recompressing hundreds of full-resolution images is genuinely that much work — but it now progresses steadily toward a finish instead of silently repeating itself for much longer than necessary.
+
+### 7. A 3GB+ video hung the tab, and the drop zone stopped responding
+FFmpeg's WebAssembly build is **WASM32**, which has a hard **4GiB address-space ceiling** no matter how much RAM the phone has — and that space has to hold the input file, FFmpeg's own working memory, and the output file all at once. Reading a 3GB+ file into a single JS `ArrayBuffer` via `file.arrayBuffer()` is itself a huge, failure-prone allocation on a phone, before FFmpeg is even reached — this is what hung the tab, not a logic bug in the compression code.
+
+**Fix:** `checkMediaFileSize()` in `js/utils.js` now refuses video/audio above **1.75GB outright**, with a clear explanation, and flags anything above 600MB as slow/risky but still attempts it. This check runs **the moment a file is added** (so an oversized file shows its error immediately on the card) and again at the start of `compressVideo`/`compressAudio` as a backstop. Separately, the file picker now resets its internal value both before opening and (via `try/finally`) after handling a selection, so an unexpected error midway through adding a file can't leave the picker pointed at an already-"selected" file — which is what made the drop zone look unresponsive to a second attempt. Honestly: there's a real, hard ceiling here that no amount of clever JavaScript moves — a 3GB+ source video is genuinely beyond what any single-threaded, in-browser WebAssembly engine can hold at once, on any device. For files at that scale, compress with a native app first, or split the video into shorter segments.
 
 ---
 
@@ -88,7 +100,7 @@ Other things checked during the audit: no `eval`/`new Function`, no `innerHTML` 
 This project can't run a real browser inside the environment it was built in, so testing focused on what could be verified for real rather than assumed:
 
 - **The exact vendored `ffmpeg-core.wasm` binary** was loaded and executed (not just downloaded) — confirmed `ffmpeg version 5.1.4`, confirmed `libx264`/`libvpx`/`aac`/`libmp3lame`/`libopus`/`libvorbis` are all present in this build, and ran a real synthetic encode (FFmpeg's own `lavfi` test source, no external file needed) to confirm the bitrate math produces sane, safe output sizes.
-- **The exact vendored `pdf-lib.min.js`** was used to build a real multi-image PDF, locate its embedded JPEGs via the same object-graph walk `pdf.js` uses, confirm an image with a transparency mask is correctly skipped, mutate and re-save it, and reload the result to confirm it's still a valid PDF.
+- **The exact vendored `pdf-lib.min.js`** was used to build a real multi-image PDF, locate its embedded JPEGs via the same object-graph walk `pdf.js` uses, confirm an image with a transparency mask is correctly skipped, mutate and re-save it, and reload the result to confirm it's still a valid PDF. A second real test built a 50-image PDF specifically to exercise the many-image code path (the one a 906-image real-world PDF hit) and confirmed progress is strictly non-decreasing end to end and every image is only ever fully encoded once.
 - **The exact, unmodified `image-worker.js`** was run end-to-end (via a Canvas-API shim) against real generated images, including the specific "small file gets bigger" scenario: an 18 KB JPEG targeting 8 KB now correctly returns ≈8 KB, never the original size or larger.
 - Every JS module's imports/exports were verified to actually resolve (no typos or mismatched names) by loading the real module graph under Node.
 - 23 unit tests cover the pure logic: byte formatting, target-size parsing, file-type detection, and the bits/second → `Nk` flag conversion (including a direct comparison against the original bug's output).
@@ -153,7 +165,8 @@ vendor/
 - **WebP is only as good as the browser's own encoder.** Older/unusual browsers without WebP support fall back to JPEG automatically in "Auto" mode.
 - **PDF compression only touches embedded JPEGs.** PNG-style raw bitmap images inside a PDF, and images with a transparency mask, are left untouched rather than risk corrupting them (see `js/compressors/pdf.js` for the exact scope).
 - **WebM/VP9 encoding is slow** in a single-threaded WASM core — it works, but expect it to take noticeably longer than MP4/H.264 for the same clip, especially on a phone.
-- **Very large videos** (multi-GB) may exceed what a mobile browser tab can hold in memory. There is no server fallback by design — that's the privacy trade-off.
+- **Video/audio files above 1.75GB are refused outright**, with an on-screen explanation, rather than being attempted and hanging the tab — FFmpeg's WASM32 build has a hard 4GB address-space ceiling that has to hold the input, working memory, and output all at once. Files above 600MB are allowed but flagged as slow/risky. There is no server fallback by design — that's the privacy trade-off, and it means there's a real ceiling on file size that no amount of client-side cleverness removes.
+- **A many-hundred-image PDF still takes real time.** The search for the right quality setting is fast (a small sample, not the whole document), but the one full pass that actually recompresses every image is inherently proportional to how many images there are — a 900-image scanned book will still take several minutes, it just now shows honest, steadily-advancing progress instead of appearing to restart.
 - Target sizes are estimates for video/audio (bitrate targeting), not byte-exact — real footage compresses differently from a synthetic test signal, and the app reports the actual achieved size rather than assuming the estimate was exact.
 
 ## Future ideas (not implemented now, so they're not overclaimed)
@@ -165,4 +178,4 @@ vendor/
 
 ## License
 
-This project's own code: MIT (see `LICENSE`). Vendored third-party code keeps its original license — see `THIRD_PARTY_LICENSES.md`.
+This project's own code: the **DD Compressor Community License** (see `LICENSE`) — free for personal, educational, and non-commercial use with attribution; selling it or a modified version of it requires the original author's permission. Vendored third-party code (FFmpeg, pdf-lib, Inter) keeps its own original license regardless — see `THIRD_PARTY_LICENSES.md`.
