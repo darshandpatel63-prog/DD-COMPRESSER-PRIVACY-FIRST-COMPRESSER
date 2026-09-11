@@ -29,6 +29,40 @@ const QUALITY_ITERATIONS = 7;
 const MAX_PASSES_PER_FORMAT = 9;
 const GOOD_ENOUGH_QUALITY = 0.4; // stop shrinking further once quality is at least this
 
+// Reads the number of color components straight out of a JPEG's SOF marker
+// — 1 = Grayscale, 3 = RGB/YCbCr (the normal web case), 4 = CMYK/YCCK. This
+// needs no decode at all, just walking the marker sequence, so it's cheap
+// enough to run on every JPEG before touching Canvas.
+//
+// Why this matters: a CMYK/YCCK JPEG (the common export from print/design
+// software — Photoshop, InDesign, professional scanners) usually needs an
+// Adobe-aware color inversion to display correctly, which this project's
+// PDF engine confirmed a generic createImageBitmap() decode does not
+// reliably apply — real embedded scans came out solid black (see README
+// bug #8). The same risk exists for a standalone CMYK JPEG uploaded
+// directly, so it gets the same treatment: detect it here and refuse
+// rather than silently bake in wrong colors.
+function jpegComponentCount(bytes) {
+  if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null; // not a JPEG (SOI)
+  let offset = 2;
+  while (offset + 3 < bytes.length) {
+    if (bytes[offset] !== 0xff) { offset++; continue; } // resync defensively
+    const marker = bytes[offset + 1];
+    if (marker === 0xff) { offset++; continue; } // fill byte
+    if (marker === 0xd9) break; // EOI
+    if ((marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { offset += 2; continue; } // no-payload markers
+    const length = (bytes[offset + 2] << 8) | bytes[offset + 3];
+    const isSOF = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isSOF) {
+      const componentsOffset = offset + 9; // marker(2) + length(2) + precision(1) + height(2) + width(2)
+      return componentsOffset < bytes.length ? bytes[componentsOffset] : null;
+    }
+    if (length < 2) break; // malformed — stop rather than loop
+    offset += 2 + length;
+  }
+  return null;
+}
+
 function nextScale(currentScale, measuredSize, targetBytes) {
   const ratio = Math.sqrt(targetBytes / Math.max(1, measuredSize));
   const step = Math.max(0.5, Math.min(0.85, ratio));
@@ -106,12 +140,39 @@ async function searchFormat(bitmap, mime, targetBytes, track) {
   return best ? { ...best, hitTarget: best.blob.size <= targetBytes } : { blob: null, hitTarget: false };
 }
 
+// A fast, deterministic safety net — NOT a cosmetic check. Draws a bitmap
+// into a tiny (24x24) canvas and returns its average brightness (0-255).
+// Comparing this before/after catches a specific, real failure signature:
+// output that went from normally-lit to near-black, which is exactly what
+// an unhandled CMYK/color-space misinterpretation produces (see README bug
+// #8 — this is the same class of corruption, now checked for automatically
+// on every single compression, not just PDFs). 24x24 is enough pixels to
+// be a stable average without costing more than a couple of milliseconds.
+async function sampleBrightness(bitmapSource) {
+  const SZ = 24;
+  const canvas = new OffscreenCanvas(SZ, SZ);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmapSource, 0, 0, SZ, SZ);
+  const { data } = ctx.getImageData(0, 0, SZ, SZ);
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+  return sum / (SZ * SZ);
+}
+const SUSPICIOUS_DARK_BRIGHTNESS = 12; // near-solid-black, out of 255
+const NOT_ALREADY_DARK_BRIGHTNESS = 40; // original has to have had real content to lose
+
 async function compress({ arrayBuffer, mime: sourceMime, name, targetBytes, format, originalBytes }, progress) {
   if (typeof OffscreenCanvas === 'undefined') {
     throw new Error('This browser does not support OffscreenCanvas, which the image engine needs.');
   }
   if (targetBytes >= originalBytes) {
     return { useOriginal: true, status: 'Already at or under your target size — left unchanged.' };
+  }
+
+  const bytesView = new Uint8Array(arrayBuffer);
+  const jpegComponents = (sourceMime === 'image/jpeg' || sourceMime === 'image/jpg') ? jpegComponentCount(bytesView) : null;
+  if (jpegComponents === 4) {
+    throw new Error('This is a CMYK JPEG (common from print/design software like Photoshop or a professional scanner). Browser-based decoding does not reliably preserve CMYK colors — recompressing it risks producing wrong or near-black colors, the same issue confirmed and documented for this project\u2019s PDF engine. Convert it to RGB first (most photo editors have a "convert to RGB" or "Assign/Convert Profile" option), then compress the RGB version here.');
   }
 
   const bitmap = await createImageBitmap(new Blob([arrayBuffer], { type: sourceMime }));
@@ -142,6 +203,10 @@ async function compress({ arrayBuffer, mime: sourceMime, name, targetBytes, form
     if (i < mimeList.length - 1) switchedFormat = true; else if (finalResult) switchedFormat = false;
   }
 
+  // Sample the original's brightness before closing it — needed for the
+  // post-compression audit below, and a closed ImageBitmap can't be drawn
+  // from again.
+  const originalBrightness = await sampleBrightness(bitmap);
   bitmap.close?.();
 
   if (!finalResult || !finalResult.blob) {
@@ -149,6 +214,25 @@ async function compress({ arrayBuffer, mime: sourceMime, name, targetBytes, form
   }
 
   const buf = await finalResult.blob.arrayBuffer();
+
+  // Post-compression audit: decode the actual candidate and compare it
+  // against the original. If a normally-lit image came out looking
+  // solid black, refuse the result outright rather than hand back
+  // something silently corrupted.
+  try {
+    const outputBitmap = await createImageBitmap(new Blob([buf], { type: usedMime }));
+    const afterBrightness = await sampleBrightness(outputBitmap);
+    outputBitmap.close?.();
+    if (originalBrightness > NOT_ALREADY_DARK_BRIGHTNESS && afterBrightness < SUSPICIOUS_DARK_BRIGHTNESS) {
+      return {
+        useOriginal: true,
+        status: 'A safety check caught the compressed result looking suspiciously different from the original (much darker than expected) and blocked it rather than risk handing back a corrupted file. The original is kept as-is — please report this so it can be fixed properly.',
+      };
+    }
+  } catch {
+    // If the audit step itself can't run for some reason, fail open rather
+    // than block a perfectly good result over a check that didn't complete.
+  }
 
   if (finalResult.blob.size >= originalBytes) {
     if (autoMode) {
