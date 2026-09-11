@@ -3,6 +3,8 @@
 // same-origin file this app ships with (see ffmpeg-engine.js for why that
 // matters).
 
+import { isNativeApp, isNativeSaveAvailable, saveNative } from './capacitor-bridge.js';
+
 export function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return '—';
   if (bytes < 1024) return `${bytes} B`;
@@ -97,11 +99,26 @@ export async function toBlobURLFromParts(localUrls, mimeType) {
   return URL.createObjectURL(new Blob(buffers, { type: mimeType }));
 }
 
-// Reliable download: object URLs must not be revoked before the browser has
-// actually started the download, but leaving them forever leaks memory for
-// a session that compresses many files. A short delay covers every browser
-// that matters without keeping large blobs alive indefinitely.
-export function downloadBlob(blob, filename) {
+// Reliable download. In a normal browser this is the classic blob: URL +
+// hidden <a download> trick. Inside the installed Android app (a Capacitor
+// WebView), that trick has nothing to hook into — a bare WebView has no
+// download manager of its own, which is exactly why the button did
+// nothing when tested in the app. When running natively AND the
+// Filesystem plugin is available, this saves through Capacitor instead;
+// see js/capacitor-bridge.js for the full explanation and what still
+// needs to be added on the native project side for that path to activate.
+export async function downloadBlob(blob, filename) {
+  if (isNativeApp()) {
+    if (isNativeSaveAvailable()) {
+      try {
+        const result = await saveNative(blob, filename);
+        return { savedNatively: true, uri: result.uri };
+      } catch (err) {
+        throw new Error('Could not save the file: ' + (err.message || err));
+      }
+    }
+    throw new Error('Saving files isn\u2019t enabled in this app build yet (the Filesystem plugin hasn\u2019t been added to the Android project). Ask the developer to update the app, or open this same site in your phone\u2019s regular browser to download normally.');
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -111,6 +128,7 @@ export function downloadBlob(blob, filename) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  return { savedNatively: false };
 }
 
 // Cheap, good-enough duration probe using a real <video>/<audio> element
@@ -150,29 +168,37 @@ export function extensionForMime(mime) {
 // FFmpeg's WASM build is WASM32, which has a hard 4GiB address-space
 // ceiling no matter how much RAM the device has — and that space has to
 // hold the input file, FFmpeg's own working/decode memory, AND the output
-// file all at once. A 3GB+ source video (the real case that hung this app
-// on a phone) has no realistic chance of fitting, and simply calling
-// file.arrayBuffer() on something that size is itself a very large,
-// failure-prone allocation on a phone before FFmpeg is ever reached. These
-// limits are deliberately conservative rather than the theoretical
-// ceiling, because a phone's browser tab has far less headroom than a
-// desktop's.
+// file all at once. This is a property of running a 32-bit WebAssembly
+// engine, full stop — it applies exactly as much inside the installed
+// Android app as it does in a browser tab, because the installed app is
+// ALSO a WebView running the SAME JavaScript/WebAssembly engine (Capacitor
+// does not replace or bypass it). Packaging this project as an .apk does
+// not, and cannot, remove this ceiling; only a genuinely different,
+// natively-compiled engine (real Android code calling a native FFmpeg
+// library, not this project) could do that, and that would be a different
+// app, not this one wrapped differently.
+//
+// What the installed app DOES get, honestly: its own dedicated process
+// instead of one tab sharing a browser's overall memory budget with
+// however many other tabs are open, which in practice tends to allow a
+// somewhat higher ceiling before the OS intervenes. "Somewhat higher," not
+// "unlimited" — the 4GB WASM32 wall is still there underneath either way.
 export const MEDIA_SIZE_LIMITS = {
-  HARD_MAX_BYTES: 1.75 * 1024 ** 3, // refuse outright above this
-  WARN_ABOVE_BYTES: 600 * 1024 ** 2, // still allowed, but flagged as risky/slow
+  get HARD_MAX_BYTES() { return (isNativeApp() ? 3 : 1.75) * 1024 ** 3; },
+  get WARN_ABOVE_BYTES() { return (isNativeApp() ? 1 : 0.6) * 1024 ** 3; },
 };
 
 export function checkMediaFileSize(file) {
   if (file.size > MEDIA_SIZE_LIMITS.HARD_MAX_BYTES) {
     return {
       ok: false,
-      message: `This file is ${formatBytes(file.size)} — over the ${formatBytes(MEDIA_SIZE_LIMITS.HARD_MAX_BYTES)} limit this browser-based engine can reliably hold in memory at once (FFmpeg's WebAssembly build has a hard 4GB address-space ceiling that has to fit the input, working memory, and output together). Trim or split this file first, or compress it with a native app instead.`,
+      message: `This file is ${formatBytes(file.size)} — over the ${formatBytes(MEDIA_SIZE_LIMITS.HARD_MAX_BYTES)} limit this engine can reliably hold in memory at once (FFmpeg's WebAssembly build has a hard 4GB address-space ceiling that has to fit the input, working memory, and output together — true whether this is running in a browser tab or the installed app, since both use the same underlying engine). Trim or split this file first, or compress it with a native desktop app instead.`,
     };
   }
   if (file.size > MEDIA_SIZE_LIMITS.WARN_ABOVE_BYTES) {
     return {
       ok: true,
-      warning: `${formatBytes(file.size)} is large for in-browser processing — this may be slow and, on a phone with limited memory, could fail partway through. Keep this tab in the foreground while it runs.`,
+      warning: `${formatBytes(file.size)} is large for in-browser processing — this may be slow and, on a phone with limited memory, could fail partway through. Keep this tab/app in the foreground while it runs.`,
     };
   }
   return { ok: true };
