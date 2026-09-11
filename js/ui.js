@@ -188,12 +188,32 @@ export function showResult(cardEl, { originalBytes, targetBytes, outputBytes, st
   result.appendChild(statusRow);
 
   if (blob && filename) {
+    const lastDot = filename.lastIndexOf('.');
+    const baseName = lastDot > 0 ? filename.slice(0, lastDot) : filename;
+    const ext = lastDot > 0 ? filename.slice(lastDot) : '';
+
+    const renameRow = document.createElement('div');
+    renameRow.className = 'result-rename';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'js-filename';
+    nameInput.value = baseName;
+    nameInput.setAttribute('aria-label', 'File name before downloading');
+    nameInput.spellcheck = false;
+    const extSpan = document.createElement('span');
+    extSpan.className = 'result-rename-ext';
+    extSpan.textContent = ext;
+    renameRow.appendChild(nameInput);
+    renameRow.appendChild(extSpan);
+    result.appendChild(renameRow);
+
     const actionsRow = document.createElement('div');
     actionsRow.className = 'result-actions';
     const dlBtn = document.createElement('button');
     dlBtn.type = 'button';
     dlBtn.className = 'btn btn-primary btn-sm';
     dlBtn.dataset.action = 'download';
+    dlBtn.dataset.ext = ext;
     dlBtn.innerHTML = icon('download') + ' Download';
     actionsRow.appendChild(dlBtn);
     result.appendChild(actionsRow);
