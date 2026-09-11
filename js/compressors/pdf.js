@@ -104,6 +104,29 @@ function findRecompressibleImages(pdfDoc) {
   return { found, skippedCmyk };
 }
 
+// Same fast, deterministic safety net as js/workers/image-worker.js: a
+// tiny (16x16) brightness sample, cheap enough to run on every single
+// embedded image without materially slowing down a many-hundred-image
+// document. Catches the exact "normally-lit source, near-black output"
+// signature of an unhandled color-space problem automatically, on top of
+// (not instead of) the specific CMYK exclusion above — real defense in
+// depth against this whole class of bug, not just the one instance of it
+// that was found and fixed.
+async function sampleBrightness(bytes, mime) {
+  const SZ = 16;
+  const bitmap = await createImageBitmap(new Blob([bytes], { type: mime }));
+  const canvas = new OffscreenCanvas(SZ, SZ);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0, SZ, SZ);
+  bitmap.close?.();
+  const { data } = ctx.getImageData(0, 0, SZ, SZ);
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+  return sum / (SZ * SZ);
+}
+const SUSPICIOUS_DARK_BRIGHTNESS = 12;
+const NOT_ALREADY_DARK_BRIGHTNESS = 40;
+
 async function reencodeOne(image, quality, maxDim) {
   let targetW, targetH;
   if (image.origWidth && image.origHeight && Math.max(image.origWidth, image.origHeight) > maxDim) {
@@ -260,9 +283,22 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
 
   onProgress(88, 'Rebuilding PDF…');
   const finalKey = `${bestQuality}:${bestMaxDim}`;
+  let auditBlocked = 0;
   for (const image of images) {
     if (image._trialKey !== finalKey) image._trial = await reencodeOne(image, bestQuality, bestMaxDim);
-    applyBytes(image, image._trial.bytes, image._trial.w, image._trial.h);
+    let safe = true;
+    try {
+      const [before, after] = await Promise.all([
+        sampleBrightness(image.original, 'image/jpeg'),
+        sampleBrightness(image._trial.bytes, 'image/jpeg'),
+      ]);
+      if (before > NOT_ALREADY_DARK_BRIGHTNESS && after < SUSPICIOUS_DARK_BRIGHTNESS) safe = false;
+    } catch { /* audit couldn't run for this image — fail open, same as the image engine */ }
+    if (safe) {
+      applyBytes(image, image._trial.bytes, image._trial.w, image._trial.h);
+    } else {
+      auditBlocked++; // leave this one image exactly as it was in the original
+    }
   }
 
   const outBytes = await pdfDoc.save({ useObjectStreams: true });
@@ -277,12 +313,13 @@ export async function compressPdf(file, { targetBytes }, onProgress) {
 
   const blob = new Blob([outBytes], { type: 'application/pdf' });
   const cmykNote = skippedCmyk > 0 ? `; ${skippedCmyk} CMYK image${skippedCmyk === 1 ? '' : 's'} left untouched` : '';
+  const auditNote = auditBlocked > 0 ? `; ${auditBlocked} image${auditBlocked === 1 ? '' : 's'} blocked by the safety check and left untouched` : '';
   return {
     useOriginal: false,
     blob,
     filename: `${baseName(file.name)}-compressed.pdf`,
     hitTarget: outBytes.length <= targetBytes,
-    detail: `${images.length} embedded image${images.length === 1 ? '' : 's'} recompressed at ${Math.round(bestQuality * 100)}% quality${cmykNote}`,
+    detail: `${images.length - auditBlocked} embedded image${images.length - auditBlocked === 1 ? '' : 's'} recompressed at ${Math.round(bestQuality * 100)}% quality${cmykNote}${auditNote}`,
     status: outBytes.length <= targetBytes
       ? 'Target reached — text and vector content untouched.'
       : 'Target not fully reached without over-compressing the embedded photos — showing the best result. Text and vector content are untouched either way.',
