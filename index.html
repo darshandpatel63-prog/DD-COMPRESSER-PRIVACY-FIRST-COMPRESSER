@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="google-site-verification" content="lveF_jG6pM-2-B_QGa6KOlYqkFstrcqleJRRdyppWJ0" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#14161a" />
 <title>DD Compressor — compress files without sending them anywhere</title>
@@ -14,7 +13,7 @@
   allowed to touch; there is no origin here a file could be sent to.
   (frame-ancestors / report-uri are intentionally omitted: the CSP
   spec doesn't honor them from a <meta> tag, only from a real HTTP
-  header, and GitHub Pages doesn't let us set one — see README..)
+  header, and GitHub Pages doesn't let us set one — see README.)
 -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';" />
 
@@ -31,7 +30,28 @@
       <a href="#privacy">Privacy</a>
       <a href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">Source</a>
     </nav>
+    <button type="button" id="menuBtn" class="menu-btn" aria-label="Open menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
   </header>
+
+  <div id="menuOverlay" class="menu-overlay" hidden>
+    <div class="menu-panel" role="dialog" aria-label="App menu" aria-modal="true">
+      <div class="menu-panel-head">
+        <span>DD Compressor</span>
+        <button type="button" id="menuCloseBtn" class="btn-icon" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <button type="button" class="menu-item" data-panel="how">How this app works</button>
+      <button type="button" class="menu-item" data-panel="privacy">Privacy Policy</button>
+      <button type="button" class="menu-item" data-panel="terms">Terms of Service</button>
+      <button type="button" class="menu-item" data-panel="disclaimer">Disclaimer</button>
+      <a class="menu-item" id="menuGetAppLink" href="#" target="_blank" rel="noopener">Get the Android app</a>
+      <a class="menu-item" href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">View source on GitHub</a>
+      <div id="menuPanelBody" class="menu-panel-body" hidden></div>
+    </div>
+  </div>
 
   <section class="hero">
     <h1>Compress files without sending them anywhere.</h1>
