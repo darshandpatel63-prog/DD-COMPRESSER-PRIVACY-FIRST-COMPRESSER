@@ -3,7 +3,7 @@ https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
 ---
 
 Direct download link 
-https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/releases/tag/v1.0
+
 ---
 
 # DD Compressor — Privacy First
@@ -83,113 +83,51 @@ A real 212MB scanned anatomy textbook compressed successfully (no more restartin
 
 ---
 
-## Architecture decisions (and why)
+## Android app (Capacitor)
+
+A `.apk` build of this project was submitted for review. Findings below are from directly inspecting that file (`aapt dump badging`, unzipping its bundled assets), not assumptions.
+
+**What it is:** a [Capacitor](https://capacitorjs.com) app (`com.darshan.compresser`) — a native Android shell around a WebView, with this project's web files bundled locally inside the `.apk` (`assets/public/...`). That bundling is good news on its own: **the app already works offline**, since Capacitor serves those local files instead of fetching them from the internet.
+
+**What was broken, and why:** the download button did nothing. `assets/capacitor.plugins.json` inside the submitted `.apk` is literally `[]` — no native plugins are compiled in yet. A website's download trick (a `blob:` URL + a hidden `<a download>` click) relies on the *browser's* download manager; a bare WebView has no download manager of its own, so that click had nothing to hook into. This is now fixed on the web-code side (`js/capacitor-bridge.js`, wired into `downloadBlob()` in `js/utils.js`): when running as a native app, it saves through Capacitor's `Filesystem` plugin and offers the native `Share` sheet instead of the browser trick. **This only activates once the Capacitor Android project itself has the plugins added** — that part happens outside this web repo:
+```bash
+npm install @capacitor/filesystem @capacitor/share
+npx cap sync android
+```
+then rebuild. Until that's done, the app will show a clear message explaining exactly this, instead of a button that silently does nothing.
+
+**Permissions, currently:** only `INTERNET` (required by the WebView component itself; this app makes no network calls with it — see `PRIVACY.md`). Modern Android's scoped storage means adding the Filesystem plugin above should **not** require the old broad "allow storage access" prompt for this kind of save.
+
+### Three things that were asked for and can't honestly be done here
+
+Being direct about this matters more than seeming agreeable — these three specifically need native Android development, which this project (a Capacitor *web* app) cannot provide from JavaScript alone, and which this working environment has no way to build or test (no Android SDK/emulator available):
+
+1. **"Unlimited file size in the app."** The installed app is *still the same WebView/WebAssembly engine* as the browser — Capacitor wraps a web page, it doesn't replace the engine underneath it. WASM32's 4GB address-space ceiling (see bug #7 below) applies exactly as much inside the app as in a browser tab, because it's the same 32-bit engine either way. What actually changed here: the app gets a modestly higher limit (3GB vs. 1.75GB — see `MEDIA_SIZE_LIMITS` in `js/utils.js`), because a dedicated app process isn't sharing memory budget with a dozen other browser tabs. That's a real, honest improvement — "somewhat higher," not "unlimited." Truly removing the ceiling would mean a fundamentally different app: native Kotlin/Java code calling a natively-compiled FFmpeg library (not WebAssembly) — a full rewrite of the compression layer, not a setting to flip.
+2. **Background compression.** Android suspends/throttles a WebView's JavaScript when the app isn't in the foreground unless the app runs a native **Foreground Service** with a persistent notification — again, native Kotlin/Java code and manifest changes, not something this web repo controls. If this is wanted, look at a Capacitor background-task plugin as the starting point, added and tested the same way as Filesystem/Share above.
+3. **Requesting permissions automatically at launch.** Also native-project configuration (`MainActivity`, `AndroidManifest.xml`), not this web repo. In practice, once Filesystem is added, Capacitor requests what it needs when a save is first attempted, which — combined with scoped storage not needing the old blanket prompt — should mean little to no "Android settings resistance" to begin with.
+
+### What "checking every file, every way" actually means here
+
+The request for the file to be checked by "multiple agents" before and after compression comes from a good, specific place — the CMYK black-image bug (#8 below). Worth being direct about one thing: literal AI agents inspecting file contents would mean sending those contents to an AI service over the network, which directly contradicts this project's one core promise (files never leave the device). That trade isn't made here, even to satisfy this request.
+
+What's built instead is real, and runs in milliseconds, entirely on-device:
+- **Analysis before compressing** — this already existed (file-type detection, the CMYK colorspace check) and is unchanged.
+- **Compression** — the existing engines, unchanged.
+- **An automatic audit after compressing, new in this update** — a fast brightness comparison (`js/workers/image-worker.js` and `js/compressors/pdf.js`) between the original and the candidate output. If a normally-lit image comes out looking suspiciously near-solid-black — the exact signature of the CMYK bug — the result is refused automatically and the original is kept, with an honest status message, rather than risk handing back something corrupted. This is a real safety net, verified against representative before/after brightness values, and it costs a handful of milliseconds per image (a 24x24 or 16x16 pixel sample), not a slowdown.
+
+This is "multiple checks, every file, every time" — done with deterministic code instead of AI agents, for the same privacy reason the whole app exists.
+
+### Other app-related changes in this update
+- **Editable filename before download** — the compressed-file name is now an editable field right above the Download button, in both the web and app versions.
+- **A simple in-app menu** ("≡" button, top right) — "How this app works," Privacy Policy, Terms of Service, Disclaimer, and a link to the Android app release, all written in plain, non-technical language on purpose (the goal is a user understanding what happens to their file, not a specification another developer could copy).
+- **`PRIVACY.md`, `TERMS.md`, `DISCLAIMER.md`** — added at the repo root, summarized in the in-app menu above.
+- **`js/app-config.js`** — the *only* file that should need editing for a new Android release: it holds nothing but the download link.
+- On the web version, hitting the video/audio size limit now honestly mentions the app as an option with a somewhat higher (not unlimited) ceiling, and that mention is hidden when already running inside the app.
+
+
 
 | Question | Decision | Why |
 |---|---|---|
 | Framework? | None — plain HTML/CSS/JS, ES modules, no build step | The brief is "code from a phone, deploy instantly." A bundler (Next.js/Vite/etc.) would need a build step you can't easily run from a phone, and GitHub Pages just serves files as-is — a build step is a liability here, not a feature. |
 | Image engine | Fully custom (`Canvas`/`OffscreenCanvas` + a plain binary search) | This is realistically implementable to a high standard with browser-native APIs alone — no library does this measurably better than a well-written binary search over quality and dimensions. |
 | Video/audio engine | `@ffmpeg/ffmpeg` (WebAssembly), vendored locally | Writing a video codec from scratch is not a reasonable ask; FFmpeg-in-WASM is the standard, well-maintained solution the whole ecosystem already relies on. Our own code owns the bitrate math, format selection, and UI — FFmpeg only does the encode. |
-| PDF engine | `pdf-lib`, with our own image-recompression logic on top | `pdf-lib` gives safe low-level access to a PDF's object graph; the actual "find images, recompress them, preserve everything else" logic is ours, not a black box. |
-| FFmpeg core variant | Single-threaded (`@ffmpeg/core`, not `@ffmpeg/core-mt`) | The multi-threaded core needs `SharedArrayBuffer`, which needs the page to be [cross-origin isolated](https://web.dev/articles/coop-coep) (COOP/COEP response headers). GitHub Pages does not let you set custom response headers, so the multi-threaded core would silently fail there. Single-threaded is slower but actually works out of the box. (A `coi-serviceworker` trick can add this later — see "Future ideas.") |
-| Fonts | Inter, self-hosted under `vendor/fonts/` (`@fontsource/inter`, Latin subset only) | Consistent with "local-first, no unnecessary runtime downloads" — the page makes zero requests to any font or asset CDN. |
-
-## Privacy & security, concretely
-
-The privacy claim isn't just prose — the page's `Content-Security-Policy` (in `index.html`'s `<head>`) is the actual enforcement of it:
-
-```
-default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self';
-font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:;
-worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none';
-base-uri 'self'; form-action 'self';
-```
-
-There is no origin in that policy a file could be sent to. Even a future bug in this code could not open a working upload without also rewriting this policy. (`frame-ancestors` is intentionally not included: the CSP spec only honors that directive from a real HTTP header, not a `<meta>` tag, and GitHub Pages doesn't let this project set one — so it's left out rather than shipped as a policy that looks stricter than it is.)
-
-Other things checked during the audit: no `eval`/`new Function`, no `innerHTML` fed with a user-controlled filename or status string (`js/ui.js` uses `textContent` for all of it), object URLs are revoked after downloads instead of leaking, FFmpeg's virtual filesystem is cleaned up after every job (success or failure), and every worker/library file is a real, verifiable local file — nothing is a stub.
-
-## Testing performed
-
-This project can't run a real browser inside the environment it was built in, so testing focused on what could be verified for real rather than assumed:
-
-- **The exact vendored `ffmpeg-core.wasm` binary** was loaded and executed (not just downloaded) — confirmed `ffmpeg version 5.1.4`, confirmed `libx264`/`libvpx`/`aac`/`libmp3lame`/`libopus`/`libvorbis` are all present in this build, and ran a real synthetic encode (FFmpeg's own `lavfi` test source, no external file needed) to confirm the bitrate math produces sane, safe output sizes.
-- **The exact vendored `pdf-lib.min.js`** was used to build a real multi-image PDF, locate its embedded JPEGs via the same object-graph walk `pdf.js` uses, confirm an image with a transparency mask is correctly skipped, mutate and re-save it, and reload the result to confirm it's still a valid PDF. A second real test built a 50-image PDF specifically to exercise the many-image code path (the one a 906-image real-world PDF hit) and confirmed progress is strictly non-decreasing end to end and every image is only ever fully encoded once.
-- **The exact, unmodified `image-worker.js`** was run end-to-end (via a Canvas-API shim) against real generated images, including the specific "small file gets bigger" scenario: an 18 KB JPEG targeting 8 KB now correctly returns ≈8 KB, never the original size or larger.
-- Every JS module's imports/exports were verified to actually resolve (no typos or mismatched names) by loading the real module graph under Node.
-- 23 unit tests cover the pure logic: byte formatting, target-size parsing, file-type detection, and the bits/second → `Nk` flag conversion (including a direct comparison against the original bug's output).
-
-**What this doesn't cover**, honestly: real browser behavior (actual Worker threads, real WebP encoding, real user interaction, mobile Safari/Chrome quirks) needs a real browser, which this build environment doesn't have. Before relying on this for something important, open it in a real browser and run through the checklist below.
-
-### Manual QA checklist (do this after deploying)
-- [ ] Drop a large photo (>5 MB), target 200 KB → confirm output ≤ 200 KB and opens correctly
-- [ ] Drop a small, already-compressed JPEG, target smaller than the file → confirm output is smaller than the *original*, not just "close to target"
-- [ ] Drop a PNG graphic with transparency, format "Auto", aggressive target → confirm it either preserves transparency (WebP) or clearly says it switched formats
-- [ ] Drop an MP4, check the browser console for the FFmpeg log lines, confirm the download plays
-- [ ] Drop a scanned/photo-heavy PDF → confirm output is smaller and text (if any) is still selectable
-- [ ] Drop a text-only PDF (resume, invoice) → confirm it honestly reports little/no change instead of faking a result
-- [ ] Try 3–4 files at once via "Compress all" → confirm they process one at a time without the tab freezing
-- [ ] On a phone: confirm the drop zone, cards, and buttons are all usable one-handed
-
-## Formats
-
-| Type | Reads | Writes | Engine |
-|---|---|---|---|
-| Image | jpg, png, webp, gif, bmp | jpg, png, webp | Our own code (Canvas/OffscreenCanvas) |
-| Video | mp4, mov, webm, avi, mkv | mp4, webm | FFmpeg (WASM), local |
-| Audio | mp3, wav, m4a, aac, ogg, flac | mp3, aac, ogg, wav | FFmpeg (WASM), local |
-| PDF | pdf | pdf | Our own code + pdf-lib |
-| Other | anything else | `.gz` | Native `CompressionStream` |
-
-A target size is a goal, not a guarantee — an already-compressed file has little room left, and this app says so rather than faking a result.
-
-## Deploying (GitHub Pages)
-
-1. Push every file in this folder to your repository's default branch, root of the repo (not a subfolder) — the relative paths in `index.html` (`./vendor/...`, `./js/...`) depend on that. Every single file in this project, including both `ffmpeg-core-part*.bin` pieces, is under GitHub's 25MB web-upload limit, so this can be done entirely from a phone browser via **Add file → Upload files**, dragging in the whole folder tree (GitHub's uploader preserves the folder structure) — no git command line required.
-2. Repo → **Settings → Pages → Deploy from a branch** → branch `main`, folder `/ (root)`.
-3. Open the URL GitHub gives you. No build step, no `npm install` needed to run it.
-
-`.nojekyll` is included so GitHub Pages serves the `vendor/` folder as-is without GitHub's default Jekyll processing getting involved.
-
-## Project structure
-
-```
-index.html
-css/styles.css
-js/
-  utils.js                 shared helpers
-  ui.js                    DOM rendering (file cards, results, toasts)
-  main.js                  wiring: drag&drop, state, dispatch
-  compressors/
-    image.js               worker wrapper
-    ffmpeg-engine.js        shared FFmpeg singleton + the bitrate-flag fix
-    video.js / audio.js     FFmpeg-based encoders
-    pdf.js                  pdf-lib-based embedded-image recompression
-    generic.js              native gzip fallback
-  workers/
-    image-worker.js         the actual image compression algorithm
-vendor/
-  ffmpeg/                  ffmpeg.js + 814.ffmpeg.js + core/ (ffmpeg-core.js + ffmpeg-core-part1.bin/-part2.bin; real files, MIT/GPL — see THIRD_PARTY_LICENSES.md)
-  pdf-lib/                 pdf-lib.min.js (MIT)
-  fonts/                   Inter, Latin subset (OFL-1.1)
-```
-
-## Known limitations (stated honestly, not hidden)
-
-- **WebP is only as good as the browser's own encoder.** Older/unusual browsers without WebP support fall back to JPEG automatically in "Auto" mode.
-- **PDF compression only touches RGB/Grayscale embedded JPEGs.** CMYK, spot-color (`Separation`/`DeviceN`), PNG-style raw bitmap images, and images with a transparency mask are all left untouched rather than risk incorrect colors or corruption (see `js/compressors/pdf.js` for the exact scope, and README bug #8 for why CMYK specifically is excluded). A print-sourced, CMYK-scanned PDF will see much less size reduction than a PDF whose photos are ordinary RGB JPEGs — that's a deliberate, verified safety choice, not an oversight.
-- **WebM/VP9 encoding is slow** in a single-threaded WASM core — it works, but expect it to take noticeably longer than MP4/H.264 for the same clip, especially on a phone.
-- **Video/audio files above 1.75GB are refused outright**, with an on-screen explanation, rather than being attempted and hanging the tab — FFmpeg's WASM32 build has a hard 4GB address-space ceiling that has to hold the input, working memory, and output all at once. Files above 600MB are allowed but flagged as slow/risky. There is no server fallback by design — that's the privacy trade-off, and it means there's a real ceiling on file size that no amount of client-side cleverness removes.
-- **A many-hundred-image PDF still takes real time.** The search for the right quality setting is fast (a small sample, not the whole document), but the one full pass that actually recompresses every image is inherently proportional to how many images there are — a 900-image scanned book will still take several minutes, it just now shows honest, steadily-advancing progress instead of appearing to restart.
-- Target sizes are estimates for video/audio (bitrate targeting), not byte-exact — real footage compresses differently from a synthetic test signal, and the app reports the actual achieved size rather than assuming the estimate was exact.
-
-## Future ideas (not implemented now, so they're not overclaimed)
-
-- Cross-origin isolation via a service-worker trick (`coi-serviceworker`) to unlock the multi-threaded FFmpeg core for faster video encodes.
-- Two-pass video encoding for tighter target-size accuracy (roughly 2x the encode time).
-- A small IndexedDB-backed "recently compressed" history, kept entirely local.
-- AVIF output once browser encoder support is consistent enough to rely on.
-
-## License
-
-This project's own code: the **DD Compressor Community License** (see `LICENSE`) — free for personal, educational, and non-commercial use with attribution; selling it or a modified version of it requires the original author's permission. Vendored third-party code (FFmpeg, pdf-lib, Inter) keeps its own original license regardless — see `THIRD_PARTY_LICENSES.md`.
