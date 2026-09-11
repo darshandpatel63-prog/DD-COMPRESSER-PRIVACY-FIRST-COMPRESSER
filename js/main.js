@@ -5,6 +5,11 @@ import { compressAudio } from './compressors/audio.js';
 import { compressPdf } from './compressors/pdf.js';
 import { compressGeneric } from './compressors/generic.js';
 import { createFileCard, setBusy, setProgress, showError, showResult, showToast } from './ui.js';
+import { initMenu } from './menu.js';
+import { isNativeApp } from './capacitor-bridge.js';
+import { ANDROID_APP_DOWNLOAD_URL } from './app-config.js';
+
+initMenu();
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -51,8 +56,12 @@ function addFiles(fileListArg) {
     // previously hung the tab.
     if (category === 'video' || category === 'audio') {
       const check = checkMediaFileSize(file);
-      if (!check.ok) showError(el, check.message);
-      else if (check.warning) showToast(check.warning, 'danger');
+      if (!check.ok) {
+        const appNote = !isNativeApp() ? ` The installed Android app has a somewhat higher limit (its own dedicated memory instead of sharing a browser tab's budget) — worth trying there, though very large files like this may still be too big for any in-device engine.` : '';
+        showError(el, check.message + appNote);
+      } else if (check.warning) {
+        showToast(check.warning, 'danger');
+      }
     }
   }
   updateCompressAllState();
@@ -167,7 +176,15 @@ fileListEl.addEventListener('click', async (e) => {
   } else if (action === 'compress') {
     runCompression(state);
   } else if (action === 'download') {
-    downloadBlob(state.blob, state.filename);
+    const nameInput = cardEl.querySelector('.js-filename');
+    const ext = actionEl.dataset.ext || '';
+    const finalName = nameInput && nameInput.value.trim() ? nameInput.value.trim() + ext : state.filename;
+    try {
+      const result = await downloadBlob(state.blob, finalName);
+      if (result.savedNatively) showToast(`Saved "${finalName}" — check the app\u2019s share sheet to move it where you want.`);
+    } catch (err) {
+      showToast(err.message || 'Could not download the file.', 'danger');
+    }
   }
 });
 
