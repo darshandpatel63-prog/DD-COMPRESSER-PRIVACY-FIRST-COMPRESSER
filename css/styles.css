@@ -570,6 +570,9 @@ footer a:hover { color: var(--text); }
 .menu-btn svg { width: 18px; height: 18px; }
 .menu-btn:hover { color: var(--text); border-color: var(--text-faint); }
 
+/* The HTML hidden attribute must always win over component display rules. */
+[hidden] { display: none !important; }
+
 .menu-overlay {
   position: fixed; inset: 0;
   background: rgba(10, 11, 14, 0.6);
@@ -616,3 +619,4 @@ footer a:hover { color: var(--text); }
 .menu-panel-body h4 { color: var(--text); margin: 16px 0 6px; font-size: 13.5px; }
 .menu-panel-body h4:first-child { margin-top: 0; }
 .menu-panel-body p { margin: 0 0 10px; }
+  
