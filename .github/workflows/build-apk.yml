@@ -94,11 +94,25 @@ jobs:
             mkdir -p "$RES/mipmap-$d"
           done
 
-          magick "$ICON" -resize 48x48!   "$RES/mipmap-mdpi/dd_compressor_icon.png"
-          magick "$ICON" -resize 72x72!   "$RES/mipmap-hdpi/dd_compressor_icon.png"
-          magick "$ICON" -resize 96x96!   "$RES/mipmap-xhdpi/dd_compressor_icon.png"
-          magick "$ICON" -resize 144x144! "$RES/mipmap-xxhdpi/dd_compressor_icon.png"
-          magick "$ICON" -resize 192x192! "$RES/mipmap-xxxhdpi/dd_compressor_icon.png"
+          # Ubuntu runners may provide ImageMagick 6, where the executable is
+          # `convert` rather than the ImageMagick 7 `magick` command.
+          if command -v magick >/dev/null 2>&1; then
+            IM_CMD="magick"
+          elif command -v convert >/dev/null 2>&1; then
+            IM_CMD="convert"
+          else
+            echo "ImageMagick executable not found after installation." >&2
+            exit 1
+          fi
+
+          echo "Using ImageMagick command: $IM_CMD"
+          "$IM_CMD" --version | head -n 2
+
+          "$IM_CMD" "$ICON" -resize 48x48!   "$RES/mipmap-mdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 72x72!   "$RES/mipmap-hdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 96x96!   "$RES/mipmap-xhdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 144x144! "$RES/mipmap-xxhdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 192x192! "$RES/mipmap-xxxhdpi/dd_compressor_icon.png"
 
           sed -i \
             -e 's/@mipmap\/ic_launcher_round/@mipmap\/dd_compressor_icon/g' \
