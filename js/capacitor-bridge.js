@@ -63,20 +63,41 @@ export async function saveNative(blob, filename) {
   const { Filesystem, Directory } = window.Capacitor.Plugins;
   if (!Filesystem) throw new Error('The Filesystem plugin isn\u2019t included in this app build yet.');
 
-  // ~350MB is a practical ceiling for the base64 fallback path specifically
-  // (a 350MB blob becomes a ~470MB string) — large enough for the vast
-  // majority of compressed output, conservative enough not to risk an
-  // out-of-memory error turning a successful compression into a failed save.
+  // Keep every exported file inside one app-owned Documents subfolder.
+  // The folder is created explicitly before writeFile(). This fixes Android
+  // builds where Documents exists but the requested child path does not.
+  const SAVE_FOLDER = 'DD Compressor';
   const BASE64_FALLBACK_CEILING = 350 * 1024 * 1024;
+
+  const cleanFilename = String(filename || 'compressed-file').replace(/[\\/:*?"<>|\x00-\x1F]/g, '_').trim() || 'compressed-file';
+  const savePath = `${SAVE_FOLDER}/${cleanFilename}`;
+
+  // Explicitly create the parent directory first. Do not rely on
+  // writeFile({ recursive: true }) alone: Android Filesystem versions can
+  // still report "Missing parent directory" when the Documents child folder
+  // has not been created yet.
+  try {
+    await Filesystem.mkdir({
+      path: SAVE_FOLDER,
+      directory: Directory.Documents,
+      recursive: true,
+    });
+  } catch (mkdirErr) {
+    // "already exists" is harmless; any other error should be surfaced.
+    const msg = String(mkdirErr?.message || mkdirErr || '').toLowerCase();
+    if (!msg.includes('exist') && !msg.includes('already')) {
+      throw new Error(`Could not prepare device storage for saving: ${mkdirErr?.message || mkdirErr}`);
+    }
+  }
 
   let writeResult;
   try {
-    // Newer Capacitor Filesystem (v5+) accepts a Blob directly — try this
-    // first; if this specific build is older, it throws and we fall back.
+    // Try the direct Blob path first. If the installed plugin build requires
+    // base64, the catch below uses the compatible fallback.
     writeResult = await Filesystem.writeFile({
-      path: filename,
+      path: savePath,
       data: blob,
-      directory: Directory?.Documents,
+      directory: Directory.Documents,
       recursive: true,
     });
   } catch (directBlobErr) {
@@ -85,22 +106,26 @@ export async function saveNative(blob, filename) {
     }
     const base64 = await blobToBase64(blob);
     writeResult = await Filesystem.writeFile({
-      path: filename,
+      path: savePath,
       data: base64,
-      directory: Directory?.Documents,
+      directory: Directory.Documents,
       recursive: true,
     });
   }
 
   // Offer the native share sheet if available so the user can immediately
-  // move the saved file wherever they actually want it — this is optional
-  // and never blocks the save itself succeeding.
+  // move the saved file wherever they actually want it. Sharing is optional
+  // and never turns a successful save into a failure.
   try {
     const { Share } = window.Capacitor.Plugins;
     if (Share && writeResult?.uri) {
-      await Share.share({ title: filename, url: writeResult.uri, dialogTitle: 'Save or share your compressed file' });
+      await Share.share({
+        title: cleanFilename,
+        url: writeResult.uri,
+        dialogTitle: 'Save or share your compressed file',
+      });
     }
-  } catch { /* share is a bonus, not a requirement — never fail the save because of it */ }
+  } catch { /* share is a bonus, not a requirement */ }
 
-  return { ok: true, uri: writeResult?.uri };
+  return { ok: true, uri: writeResult?.uri, path: savePath };
 }
