@@ -130,7 +130,16 @@ function openPicker() {
   fileInput.value = '';
   fileInput.click();
 }
-dropZone.addEventListener('click', openPicker);
+dropZone.addEventListener('click', (e) => {
+  // The drop zone is a <label for=fileInput>, so the browser/WebView can
+  // open the native chooser without relying only on a programmatic click.
+  // Keep this handler only as a safe fallback for browsers that do not
+  // activate the label correctly.
+  if (e.target === dropZone) {
+    e.preventDefault();
+    openPicker();
+  }
+});
 dropZone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openPicker(); } });
 fileInput.addEventListener('change', () => {
   try {
