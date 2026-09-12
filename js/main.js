@@ -179,9 +179,35 @@ fileListEl.addEventListener('click', async (e) => {
     const nameInput = cardEl.querySelector('.js-filename');
     const ext = actionEl.dataset.ext || '';
     const finalName = nameInput && nameInput.value.trim() ? nameInput.value.trim() + ext : state.filename;
+
+    // Native Android saves use device storage. Ask the user once before the
+    // first native save so there is explicit consent and no hidden storage
+    // use. This is an in-app consent notice, not a broad Android storage
+    // permission: modern scoped Documents storage does not need that legacy
+    // permission.
+    if (isNativeApp()) {
+      const consentKey = 'dd_compressor_native_storage_consent_v1';
+      const consented = localStorage.getItem(consentKey) === 'granted';
+      if (!consented) {
+        const ok = window.confirm(
+          'Save compressed file to your device?\n\n' +
+          'DD Compressor will create a copy in the app's Documents storage. ' +
+          'This uses some space on your device. Your file is not uploaded to our server.\n\n' +
+          'Continue saving?'
+        );
+        if (!ok) {
+          showToast('Save cancelled. No file was written to device storage.');
+          return;
+        }
+        localStorage.setItem(consentKey, 'granted');
+      }
+    }
+
     try {
       const result = await downloadBlob(state.blob, finalName);
-      if (result.savedNatively) showToast(`Saved "${finalName}" — check the app\u2019s share sheet to move it where you want.`);
+      if (result.savedNatively) {
+        showToast(`Saved "${finalName}" to DD Compressor storage — the share sheet can move it elsewhere.`);
+      }
     } catch (err) {
       showToast(err.message || 'Could not download the file.', 'danger');
     }
