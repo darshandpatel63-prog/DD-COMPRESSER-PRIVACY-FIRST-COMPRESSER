@@ -3,7 +3,7 @@ https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
 ---
 
 Direct download link 
-
+https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/releases/tag/v1.0
 ---
 
 # DD Compressor — Privacy First
