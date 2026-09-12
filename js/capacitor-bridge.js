@@ -15,24 +15,46 @@
 //      compressed file through it instead of the browser download trick,
 //      then offer the native Share sheet so the user can immediately move
 //      it wherever they want (a specific folder, WhatsApp, email, etc).
-//   2. THE CAPACITOR ANDROID PROJECT (not done yet — this lives in the
-//      native project, not this web repo, so it has to happen there):
-//         npm install @capacitor/filesystem @capacitor/share
-//         npx cap sync android
-//      then rebuild the APK. Right now assets/capacitor.plugins.json in
-//      the built app is empty ([]) — confirmed by inspecting the actual
-//      submitted app-debug.apk — meaning neither plugin is compiled in
-//      yet, so this file's native path can't do anything until that step
-//      happens. Until then, isNativeSaveAvailable() below correctly
-//      reports false, and the UI shows an honest message instead of a
-//      button that silently does nothing.
+//   2. THE CAPACITOR ANDROID PROJECT: npm install @capacitor/filesystem
+//      @capacitor/share, then npx cap sync android, then rebuild.
 //
-// One thing this does NOT need: the classic Android storage permission
-// prompt. Both plugins write through Android's modern scoped-storage APIs
-// on a current targetSdkVersion (this app targets 36), which don't require
-// the old broad "Allow access to photos and files" dialog for this kind of
-// save — one less thing to worry about causing "Android setting
-// resistance."
+// A real bug lived here before this comment was updated: the code did
+// `const { Filesystem, Directory } = window.Capacitor.Plugins`. Filesystem
+// is correct — it's the actual native plugin bridge, and Capacitor puts
+// every registered plugin there. Directory is NOT a plugin, though; it's a
+// plain string-constant object (`Directory.Documents === "DOCUMENTS"`,
+// etc.) that the @capacitor/filesystem NPM package exports for bundled
+// apps to `import`. It was never on window.Capacitor.Plugins, so that
+// destructure silently produced `Directory === undefined`, and
+// `Directory.Documents` a few lines later threw exactly the reported
+// error: "Cannot read properties of undefined (reading 'Documents')".
+// Fixed by defining the same constants locally — verified against the
+// actual @capacitor/filesystem package source rather than assumed.
+const Directory = {
+  Documents: 'DOCUMENTS',
+  Data: 'DATA',
+  Library: 'LIBRARY',
+  Cache: 'CACHE',
+  External: 'EXTERNAL',
+  ExternalStorage: 'EXTERNAL_STORAGE',
+};
+
+// Separately: this now deliberately saves to Directory.External, not
+// Directory.Documents. Also verified directly against the package source,
+// not assumed: Directory.Documents maps to Android's public/shared
+// Documents folder, which its own documentation says is "not accessible on
+// Android 11 or newer" for files an app didn't create itself, unless the
+// manifest opts into legacy storage. Directory.External is the app's own
+// external-files area — always writable, on every Android version, with no
+// permission and no manifest flag, because it's private to this app. This
+// is also the accurate answer to why Android's own App Info screen
+// correctly shows zero permissions for this app: saving here was never a
+// permission-gated operation to begin with, on any Android version — not a
+// missing prompt, just a kind of storage that doesn't require one. The
+// Share step below is what actually gets the file somewhere the user can
+// browse to, find, and move — the same way sharing any file from any app
+// does on Android.
+const SAVE_DIRECTORY = Directory.External;
 
 export function isNativeApp() {
   return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -60,12 +82,12 @@ async function blobToBase64(blob) {
 // Returns { ok: true, uri } on success, or throws with a message the UI
 // can show directly.
 export async function saveNative(blob, filename) {
-  const { Filesystem, Directory } = window.Capacitor.Plugins;
+  const { Filesystem } = window.Capacitor.Plugins;
   if (!Filesystem) throw new Error('The Filesystem plugin isn\u2019t included in this app build yet.');
 
-  // Keep every exported file inside one app-owned Documents subfolder.
-  // The folder is created explicitly before writeFile(). This fixes Android
-  // builds where Documents exists but the requested child path does not.
+  // Keep every exported file inside one app-owned subfolder. The folder is
+  // created explicitly before writeFile(). This fixes Android builds where
+  // the base directory exists but the requested child path does not.
   const SAVE_FOLDER = 'DD Compressor';
   const BASE64_FALLBACK_CEILING = 350 * 1024 * 1024;
 
@@ -74,12 +96,12 @@ export async function saveNative(blob, filename) {
 
   // Explicitly create the parent directory first. Do not rely on
   // writeFile({ recursive: true }) alone: Android Filesystem versions can
-  // still report "Missing parent directory" when the Documents child folder
-  // has not been created yet.
+  // still report "Missing parent directory" when the child folder has not
+  // been created yet.
   try {
     await Filesystem.mkdir({
       path: SAVE_FOLDER,
-      directory: Directory.Documents,
+      directory: SAVE_DIRECTORY,
       recursive: true,
     });
   } catch (mkdirErr) {
@@ -97,7 +119,7 @@ export async function saveNative(blob, filename) {
     writeResult = await Filesystem.writeFile({
       path: savePath,
       data: blob,
-      directory: Directory.Documents,
+      directory: SAVE_DIRECTORY,
       recursive: true,
     });
   } catch (directBlobErr) {
@@ -108,14 +130,15 @@ export async function saveNative(blob, filename) {
     writeResult = await Filesystem.writeFile({
       path: savePath,
       data: base64,
-      directory: Directory.Documents,
+      directory: SAVE_DIRECTORY,
       recursive: true,
     });
   }
 
   // Offer the native share sheet if available so the user can immediately
-  // move the saved file wherever they actually want it. Sharing is optional
-  // and never turns a successful save into a failure.
+  // move the saved file wherever they actually want it — into Downloads, a
+  // specific folder, WhatsApp, email, and so on. Sharing is optional and
+  // never turns a successful save into a failure.
   try {
     const { Share } = window.Capacitor.Plugins;
     if (Share && writeResult?.uri) {
