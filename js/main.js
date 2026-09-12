@@ -252,3 +252,4 @@ function checkCapabilities() {
   }
 }
 checkCapabilities();
+
