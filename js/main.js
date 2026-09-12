@@ -199,10 +199,10 @@ fileListEl.addEventListener('click', async (e) => {
       const consented = localStorage.getItem(consentKey) === 'granted';
       if (!consented) {
         const ok = window.confirm(
-          'Save compressed file to your device?\n\n' +
-          'DD Compressor will create a copy in the app's Documents storage. ' +
-          'This uses some space on your device. Your file is not uploaded to our server.\n\n' +
-          'Continue saving?'
+          `Save compressed file to your device?\n\n` +
+          `DD Compressor will create a copy in the app's Documents storage. ` +
+          `This uses some space on your device. Your file is not uploaded to our server.\n\n` +
+          `Continue saving?`
         );
         if (!ok) {
           showToast('Save cancelled. No file was written to device storage.');
