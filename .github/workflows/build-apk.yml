@@ -65,7 +65,9 @@ jobs:
           npm install --save-exact \
             @capacitor/cli@8.5.0 \
             @capacitor/core@8.5.0 \
-            @capacitor/android@8.5.0
+            @capacitor/android@8.5.0\
+            @capacitor/filesystem@8.0.0\
+            @capacitor/share@8.0.0
 
       # 6. Show versions
       - name: 🔎 Show build versions
