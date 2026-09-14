@@ -1,242 +1,199 @@
+# DD Compressor
 
-https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
----
+Privacy-first file compression — images, video, audio, and PDFs — that runs entirely on your own device. No upload, no server, no account. Works on the web and as an installed Android app (phone and tablet), and works fully offline once loaded.
 
-Direct download link 
-https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/releases/download/v1.0/DD-Compressor-v1.0.apk
----
-
-# DD Compressor — Privacy First
-
-A browser-based file compressor. Images, video, audio, and PDFs are re-encoded **inside the browser tab that opens this page** — nothing is ever uploaded, because the app has no upload endpoint to send anything to.
-
-**Live once deployed:** `https://<your-username>.github.io/<your-repo>/`
+This is the same compression engine from the original DD Compresser project, restructured to ship as a proper Android app via **Tauri** instead of Capacitor, with a redesigned app-specific UI and an ad system that pays for hosting without getting in the way. Everything below explains what changed, why, and exactly how to build and publish it — written for building entirely from a phone, the same way the original project was.
 
 ---
 
-## What changed from the original project
+## What's in this repository
 
-This is a rebuild of the original DD Compressor, not a patch. The original HTML/CSS/UX ideas were good and are kept; the audit below is what was actually broken and how each was fixed.
-
-### 1. FFmpeg never loaded at all
-`index.html` referenced `./ffmpeg.min.js` locally, but that file (and its companion `814.ffmpeg.js`) were never actually included in the repository — so on GitHub Pages, `window.FFmpegWASM` was always `undefined` and video/audio compression failed before it could even start.
-
-The underlying reason those files have to sit **next to each other**, and be loaded from the **same origin as the page**, is in `@ffmpeg/ffmpeg`'s own UMD bundle: it resolves its worker chunk relative to wherever its own `<script>` tag was loaded from —
-
-```js
-// from node_modules/@ffmpeg/ffmpeg/dist/umd/ffmpeg.js (unminified excerpt)
-new Worker(new URL(e.p + e.u(814), e.b))   // e.p = directory of ffmpeg.js itself
 ```
-
-If `ffmpeg.js` is loaded from a CDN, `e.p` becomes the CDN's URL, and the browser refuses to construct a Worker whose script lives on a different origin than the page — which is exactly the original error: *"Failed to construct 'Worker': Script at https://cdn.jsdelivr.net/.../814.ffmpeg.js cannot be accessed from origin https://....github.io"*.
-
-**Fix:** `vendor/ffmpeg/ffmpeg.js` and `vendor/ffmpeg/814.ffmpeg.js` are real files (downloaded from the published `@ffmpeg/ffmpeg@0.12.15` npm package, not placeholders), committed side by side, loaded via a same-origin relative `<script src="./vendor/ffmpeg/ffmpeg.js">`. **Note this is `./vendor/ffmpeg/ffmpeg.js`, not `./ffmpeg.min.js`** — if a tool or audit flags a reference to `./ffmpeg.min.js` in this project, it's looking at the *original*, pre-rebuild file; `index.html` in this repo has never referenced that path. The WASM core (`ffmpeg-core.js` / the split `ffmpeg-core-part*.bin`, from `@ffmpeg/core@0.12.10`) is also vendored locally and converted to `blob:` URLs before being handed to `ffmpeg.load()`, so it never depends on a CDN being reachable.
-
-*Verified for real:* the exact vendored `ffmpeg-core.wasm` was loaded and executed under Node for this project (not just assumed to work) — see "Testing performed" below.
-
-### 2. Video/audio bitrate was 1000x too high
-`compressMedia()` correctly computed a bitrate in **bits/second** (`targetBytes * 8 / duration`), then built the ffmpeg flag as `` `${bitrate}k` ``. FFmpeg's `k` suffix means ×1000 — so a correctly-computed value like `313000` (313 kbps) became the string `"313000k"`, i.e. **313,000 kbps (≈313 Mbps)**. That's an effectively unlimited bitrate ceiling, so `-maxrate`/`-bufsize` did nothing and target-size compression for video/audio couldn't have worked even once FFmpeg loaded.
-
-**Fix:** `bpsToKFlag()` in `js/compressors/ffmpeg-engine.js` divides by 1000 before appending `k`. Confirmed with a real encode (synthetic FFmpeg `lavfi` source, no external test file needed) that a 150KB/3-second target now produces flags like `-b:v 313k` instead of `-b:v 312832k`.
-
-### 3. Compressing a small/already-optimized image could make it *bigger*
-`compressImage()` tracked "the candidate closest to the target size," with no floor comparing it to the **original** file size. Converting an already-small image to PNG via `canvas.toBlob` — the default first attempt — can genuinely balloon a small photo (e.g. 80 KB → 400+ KB), because canvas always emits full 32-bit-per-pixel PNG, never the palette/indexed optimization a small source file may have used. Separately, the dimension-reduction loop had a `newWidth === width → break` guard for the 64px floor that could exit silently while still holding that oversized early candidate.
-
-**Fix:** the new engine (`js/workers/image-worker.js`) always compares its final candidate against the **original file size** and refuses to return anything larger — falling back to the unmodified original with an honest "already efficient" status instead. Verified with a real regression test: an 18 KB JPEG asked to hit an 8 KB target now correctly returns ~8 KB (never the original size or larger); see "Testing performed."
-
-### 4. PDF compression was full-page rasterization
-The original approach rendered every page to a canvas via PDF.js and rebuilt the file as a stack of images via jsPDF. It shrinks photo-heavy PDFs, but it destroys selectable text, real vector graphics, and form fields on **every** PDF, including ones that were mostly text.
-
-**Fix:** `js/compressors/pdf.js` walks the PDF's own object graph (via `pdf-lib`) and recompresses just the embedded JPEG (`/DCTDecode`) images in place — the same objects a scanner or photo-heavy export actually uses for their bulk. Text, fonts, and vector paths are untouched because their PDF objects are never touched. A resume or invoice with no photos will correctly show little or no size change; that is the honest result for a document with nothing large left to shrink.
-
-### 5. Why the .wasm is split in two
-`ffmpeg-core.wasm` is ~32MB. That's over GitHub's 25MB limit for its web "Upload files" button, and too big for phone code editors like Spck (5MB) or Acode (1MB) to handle at all — a real problem for a project meant to be pushed from a phone.
-
-The fix is storage-only, not a code change to FFmpeg: the binary is split into two ordered pieces, `vendor/ffmpeg/core/ffmpeg-core-part1.bin` (~16.1MB) and `ffmpeg-core-part2.bin` (~16.1MB), each comfortably under the 25MB web-upload ceiling. At runtime, `toBlobURLFromParts()` in `js/utils.js` fetches both and concatenates them back into one buffer with `new Blob([part1, part2])` before FFmpeg ever sees it. This was verified two ways before shipping: a SHA-256 checksum of the two parts concatenated together matches the original single file exactly, and the reassembled buffer was fed into the real `ffmpeg-core.wasm` loader under Node and used to run a real encode — same `ffmpeg version 5.1.4`, same working output, byte-for-byte the same core.
-
-**If you ever need the single `.wasm` file back** (e.g. deploying somewhere without a 25MB limit), reassemble it locally:
-```bash
-cat vendor/ffmpeg/core/ffmpeg-core-part1.bin vendor/ffmpeg/core/ffmpeg-core-part2.bin > vendor/ffmpeg/core/ffmpeg-core.wasm
+web/                    The actual app — HTML/CSS/JS. Identical for the website
+                         and the Android app; see "Web vs. app UI/UX" below for
+                         how one codebase serves two different experiences.
+src-tauri/               The Tauri (Rust) application shell that turns web/ into
+                         an installed Android app.
+plugins/tauri-plugin-dd-native/
+                         A small custom plugin: native save/share, and the
+                         entire ad system (AdMob banner + app-open, UMP
+                         consent). Kotlin on the Android side, Rust glue on
+                         the Tauri side.
+icon-source/             The app icon's source artwork (SVG + a rendered 1024px
+                         PNG) — `tauri icon` generates every platform size from
+                         the PNG.
+.github/workflows/
+  android-build.yml      Builds the Android app on GitHub's servers — no
+                         Android Studio or Rust needed on your own device.
+STORE_LISTING.md         Copy and guidance for submitting to Play Store, Amazon
+                         Appstore, Samsung Galaxy Store, and Xiaomi/Vivo/Oppo
+                         app stores.
 ```
-and point `CORE_WASM_PARTS` in `js/compressors/ffmpeg-engine.js` back to a single `toBlobURL()` call instead.
-
-### 6. A many-hundred-image PDF looked like it kept restarting
-A 906-image, 212MB scanned textbook PDF appeared to process, then start over, several times, and never finished. It wasn't actually restarting — it was working, just far too slowly, and its own progress reporting made that look like a restart.
-
-The old search tried up to 3 dimension levels × 5 quality guesses = **15 full passes over every single embedded image**, plus one confirmation pass — 16 × 906 ≈ 14,500 encode operations. On top of that, progress was calculated as "image *i* of *N* in this pass," which resets to a low number at the start of every one of those 16 passes — so once a pass finished and the next one began, the progress bar visibly snapped back down, looking exactly like "it finished, then restarted."
-
-**Fix, in `js/compressors/pdf.js`:** documents with more than 30 recompressible images now estimate the right quality/dimension setting from a small, spread-out **sample** (at most ~10 images) instead of grid-searching the whole document, then apply that setting in exactly **one** full pass — not sixteen. Progress is now cumulative across the whole operation (never resets), and after the first few images it shows a real "~N minutes left" estimate timed from this device's own actual speed. Each image decode also now uses `createImageBitmap`'s built-in resize option when the target size is already known from the PDF's own `/Width`/`/Height` fields, instead of decoding a high-DPI scan at full resolution just to immediately shrink it. Verified with a real 50-image synthetic PDF: progress is confirmed strictly non-decreasing end to end, and the whole document is only ever fully encoded once. A many-hundred-image document will still take real time — recompressing hundreds of full-resolution images is genuinely that much work — but it now progresses steadily toward a finish instead of silently repeating itself for much longer than necessary.
-
-### 7. A 3GB+ video hung the tab, and the drop zone stopped responding
-FFmpeg's WebAssembly build is **WASM32**, which has a hard **4GiB address-space ceiling** no matter how much RAM the phone has — and that space has to hold the input file, FFmpeg's own working memory, and the output file all at once. Reading a 3GB+ file into a single JS `ArrayBuffer` via `file.arrayBuffer()` is itself a huge, failure-prone allocation on a phone, before FFmpeg is even reached — this is what hung the tab, not a logic bug in the compression code.
-
-**Fix:** `checkMediaFileSize()` in `js/utils.js` now refuses video/audio above **1.75GB outright**, with a clear explanation, and flags anything above 600MB as slow/risky but still attempts it. This check runs **the moment a file is added** (so an oversized file shows its error immediately on the card) and again at the start of `compressVideo`/`compressAudio` as a backstop. Separately, the file picker now resets its internal value both before opening and (via `try/finally`) after handling a selection, so an unexpected error midway through adding a file can't leave the picker pointed at an already-"selected" file — which is what made the drop zone look unresponsive to a second attempt. Honestly: there's a real, hard ceiling here that no amount of clever JavaScript moves — a 3GB+ source video is genuinely beyond what any single-threaded, in-browser WebAssembly engine can hold at once, on any device. For files at that scale, compress with a native app first, or split the video into shorter segments.
-
-### 8. Embedded photos in a print-sourced PDF came out solid black
-A real 212MB scanned anatomy textbook compressed successfully (no more restarting, see #6) — but its diagrams came out almost solid black. This was a real, serious bug, fully root-caused rather than patched blind:
-
-`pdfimages -list` on the original showed every affected image as `cmyk` (4-component), and the raw JPEG carries an Adobe APP14 marker with `transform=2` (YCCK) — a well-known, historically inconsistent convention where CMY values are stored inverted, correctly handled by Adobe-aware renderers (confirmed: `poppler`'s own PDF rendering of the same page shows the skeleton diagram correctly) but not reliably by a generic decode of the raw JPEG stream on its own. This project's engine was extracting exactly that raw stream and handing it to `createImageBitmap` — a decode path with no way to guarantee the same Adobe-aware correction, and evidence (a direct raw extraction rendered the same way) confirmed it was producing the same near-black result.
-
-**Fix:** `js/compressors/pdf.js` now resolves each image's actual PDF colorspace — including indirect references and `ICCBased`/`Indexed` wrappers — and only recompresses images that are genuinely RGB or Grayscale. CMYK, `Separation`, and `DeviceN` (spot-color) images are left **completely untouched**, byte-for-byte, the same safety treatment already given to images with a transparency mask. This was not left as a theoretical fix: it was run against the actual real 212MB file, confirming the previously-black page now renders identically to the original (verified with a poppler render, pixel-identical file size to the untouched source page), with zero progress regressions.
-
-**The honest trade-off:** a print-sourced, CMYK-scanned textbook like this one is now correctly *not* corrupted — but also barely compresses, because CMYK images were the vast majority of its size (907 of 909 embedded images in this file). This is the right default: this project's core promise is "never corrupt your file," and that has to outrank compression ratio when the two conflict. For a CMYK-heavy PDF like this, a desktop tool that's specifically CMYK-aware (Adobe Acrobat's own "Reduce File Size," for example) will do meaningfully better than any browser-only engine can right now.
 
 ---
 
-## Android app (Capacitor)
+## Why Tauri, not Capacitor
 
-A `.apk` build of this project was submitted for review. Findings below are from directly inspecting that file (`aapt dump badging`, unzipping its bundled assets), not assumptions.
+The previous version of this project used Capacitor to wrap the web app as an Android app (see `web/js/native-bridge.js` for a code-level comparison with how the old `capacitor-bridge.js` worked). This version uses **Tauri** instead, for a few concrete reasons:
 
-**What it is:** a [Capacitor](https://capacitorjs.com) app (`com.darshan.compresser`) — a native Android shell around a WebView, with this project's web files bundled locally inside the `.apk` (`assets/public/...`). That bundling is good news on its own: **the app already works offline**, since Capacitor serves those local files instead of fetching them from the internet.
+- **The web code barely changes.** Tauri wraps the exact same `web/` folder in a native shell — there was no rewrite of the compression engine, the UI, or the CSS in a different framework's component model, the way switching to Flutter or React Native would have required (both would mean rebuilding the interface from scratch in Dart or JSX). The one JS file that talks to the native layer (`native-bridge.js`) was swapped for a Tauri-based version with the *exact same function names and return shapes* the rest of the app already calls — see that file's comments for the full explanation.
+- **Smaller, and a genuinely different security model.** Tauri's Android build uses the system WebView (same as Capacitor) but ships a Rust core instead of a Node/Chromium-adjacent one, with an explicit capabilities system that scopes exactly which native commands the web page is allowed to call (see `src-tauri/capabilities/default.json`) — a good match for an app whose entire pitch is "nothing leaves your device."
+- **It's the actively-maintained, first-party path.** Of the four options considered (Flutter, React Native, Tauri Mobile, native Kotlin — see the comparison you provided), Tauri Mobile is the one explicitly positioned as a Capacitor alternative that keeps a web codebase as the source of truth, backed by the Tauri team/community rather than requiring a full platform-specific rewrite.
 
-**What was broken, and why:** the download button did nothing. `assets/capacitor.plugins.json` inside the submitted `.apk` is literally `[]` — no native plugins are compiled in yet. A website's download trick (a `blob:` URL + a hidden `<a download>` click) relies on the *browser's* download manager; a bare WebView has no download manager of its own, so that click had nothing to hook into. This is now fixed on the web-code side (`js/capacitor-bridge.js`, wired into `downloadBlob()` in `js/utils.js`): when running as a native app, it saves through Capacitor's `Filesystem` plugin and offers the native `Share` sheet instead of the browser trick. **This only activates once the Capacitor Android project itself has the plugins added** — that part happens outside this web repo:
-```bash
-npm install @capacitor/filesystem @capacitor/share
-npx cap sync android
-```
-then rebuild. Until that's done, the app will show a clear message explaining exactly this, instead of a button that silently does nothing.
+**Trade-off to know about:** Tauri Mobile is younger than Capacitor for Android specifically, and this repository's Android/Kotlin pieces could not be compiled or run in the environment that built them (no Android SDK, no network access — see "If the Android build fails" below for exactly what was and wasn't possible to verify, and how to fix the most likely failure points).
 
-**Permissions, currently:** only `INTERNET` (required by the WebView component itself; this app makes no network calls with it — see `PRIVACY.md`). Modern Android's scoped storage means adding the Filesystem plugin above should **not** require the old broad "allow storage access" prompt for this kind of save.
+---
 
-### Three things that were asked for and can't honestly be done here
+## Platforms
 
-Being direct about this matters more than seeming agreeable — these three specifically need native Android development, which this project (a Capacitor *web* app) cannot provide from JavaScript alone, and which this working environment has no way to build or test (no Android SDK/emulator available):
+- **Web** — unchanged, deploy `web/` anywhere static (GitHub Pages, same as before).
+- **Android** — phone and tablet, via this Tauri project. One APK/AAB runs on both; the CSS is responsive, not a separate tablet build.
+- **Not included:** iOS and desktop (Windows/macOS/Linux) builds. Tauri could technically add both later with modest extra work, but neither was asked for, so neither is wired up here (see `plugins/tauri-plugin-dd-native/src/desktop.rs` — it's a harmless no-op stub, not a real implementation).
 
-1. **"Unlimited file size in the app."** The installed app is *still the same WebView/WebAssembly engine* as the browser — Capacitor wraps a web page, it doesn't replace the engine underneath it. WASM32's 4GB address-space ceiling (see bug #7 below) applies exactly as much inside the app as in a browser tab, because it's the same 32-bit engine either way. What actually changed here: the app gets a modestly higher limit (3GB vs. 1.75GB — see `MEDIA_SIZE_LIMITS` in `js/utils.js`), because a dedicated app process isn't sharing memory budget with a dozen other browser tabs. That's a real, honest improvement — "somewhat higher," not "unlimited." Truly removing the ceiling would mean a fundamentally different app: native Kotlin/Java code calling a natively-compiled FFmpeg library (not WebAssembly) — a full rewrite of the compression layer, not a setting to flip.
-2. **Background compression.** Android suspends/throttles a WebView's JavaScript when the app isn't in the foreground unless the app runs a native **Foreground Service** with a persistent notification — again, native Kotlin/Java code and manifest changes, not something this web repo controls. If this is wanted, look at a Capacitor background-task plugin as the starting point, added and tested the same way as Filesystem/Share above.
-3. **Requesting permissions automatically at launch.** Also native-project configuration (`MainActivity`, `AndroidManifest.xml`), not this web repo. In practice, once Filesystem is added, Capacitor requests what it needs when a save is first attempted, which — combined with scoped storage not needing the old blanket prompt — should mean little to no "Android settings resistance" to begin with.
+---
 
-### What "checking every file, every way" actually means here
+## Running the web version
 
-The request for the file to be checked by "multiple agents" before and after compression comes from a good, specific place — the CMYK black-image bug (#8 below). Worth being direct about one thing: literal AI agents inspecting file contents would mean sending those contents to an AI service over the network, which directly contradicts this project's one core promise (files never leave the device). That trade isn't made here, even to satisfy this request.
+Nothing changed here — open `web/index.html` directly, or serve the `web/` folder with any static file server. Still no build step, no `npm install` required just to run it.
 
-What's built instead is real, and runs in milliseconds, entirely on-device:
-- **Analysis before compressing** — this already existed (file-type detection, the CMYK colorspace check) and is unchanged.
-- **Compression** — the existing engines, unchanged.
-- **An automatic audit after compressing, new in this update** — a fast brightness comparison (`js/workers/image-worker.js` and `js/compressors/pdf.js`) between the original and the candidate output. If a normally-lit image comes out looking suspiciously near-solid-black — the exact signature of the CMYK bug — the result is refused automatically and the original is kept, with an honest status message, rather than risk handing back something corrupted. This is a real safety net, verified against representative before/after brightness values, and it costs a handful of milliseconds per image (a 24x24 or 16x16 pixel sample), not a slowdown.
+## Building the Android app
 
-This is "multiple checks, every file, every time" — done with deterministic code instead of AI agents, for the same privacy reason the whole app exists.
+You don't need Android Studio, Rust, or the Android SDK on your own device — `.github/workflows/android-build.yml` does the whole build on GitHub's servers, the same way the old `build-apk.yml` did for the Capacitor version.
 
-### Other app-related changes in this update
-- **Editable filename before download** — the compressed-file name is now an editable field right above the Download button, in both the web and app versions.
-- **A simple in-app menu** ("≡" button, top right) — "How this app works," Privacy Policy, Terms of Service, Disclaimer, and a link to the Android app release, all written in plain, non-technical language on purpose (the goal is a user understanding what happens to their file, not a specification another developer could copy).
-- **`PRIVACY.md`, `TERMS.md`, `DISCLAIMER.md`** — added at the repo root, summarized in the in-app menu above.
-- **`js/app-config.js`** — the *only* file that should need editing for a new Android release: it holds nothing but the download link.
-- On the web version, hitting the video/audio size limit now honestly mentions the app as an option with a somewhat higher (not unlimited) ceiling, and that mention is hidden when already running inside the app.
+1. Push this project to a GitHub repository (uploading the extracted zip through GitHub's web "Add file → Upload files" works fine from a phone browser, same as before).
+2. Go to the repo's **Actions** tab → **Build Android app** → **Run workflow**.
+3. Wait for the run to finish (Rust + Android builds take a few minutes longer than the old Capacitor build did).
+4. Open the finished run → **Artifacts** → download `DD-Compressor-debug-apk`. That's an installable, unsigned debug APK — good enough to sideload and test immediately.
+5. Once you're ready for a real release (Play Store, or any store that wants a signed build), see **Signing a release build** below — the same workflow run will then also produce a signed AAB and APK.
 
+The workflow also runs automatically on every push to `main` that touches `web/`, `src-tauri/`, `plugins/`, or `icon-source/`.
 
+### If the Android build fails
 
-| Question | Decision | Why |
-|---|---|---|
-| Framework? | None — plain HTML/CSS/JS, ES modules, no build step | The brief is "code from a phone, deploy instantly." A bundler (Next.js/Vite/etc.) would need a build step you can't easily run from a phone, and GitHub Pages just serves files as-is — a build step is a liability here, not a feature. |
-| Image engine | Fully custom (`Canvas`/`OffscreenCanvas` + a plain binary search) | This is realistically implementable to a high standard with browser-native APIs alone — no library does this measurably better than a well-written binary search over quality and dimensions. |
-| Video/audio engine | `@ffmpeg/ffmpeg` (WebAssembly), vendored locally | Writing a video codec from scratch is not a reasonable ask; FFmpeg-in-WASM is the standard, well-maintained solution the whole ecosystem already relies on. Our own code owns the bitrate math, format selection, and UI — FFmpeg only does the encode. |
-| PDF engine | `pdf-lib`, with our own image-recompression logic on top | `pdf-lib` gives safe low-level access to a PDF's object graph; the actual "find images, recompress them, preserve everything else" logic is ours, not a black box. |
-| FFmpeg core variant | Single-threaded (`@ffmpeg/core`, not `@ffmpeg/core-mt`) | The multi-threaded core needs `SharedArrayBuffer`, which needs the page to be [cross-origin isolated](https://web.dev/articles/coop-coep) (COOP/COEP response headers). GitHub Pages does not let you set custom response headers, so the multi-threaded core would silently fail there. Single-threaded is slower but actually works out of the box. (A `coi-serviceworker` trick can add this later — see "Future ideas.") |
-| Fonts | Inter, self-hosted under `vendor/fonts/` (`@fontsource/inter`, Latin subset only) | Consistent with "local-first, no unnecessary runtime downloads" — the page makes zero requests to any font or asset CDN. |
+Everything Kotlin/Rust in this repository was written against current, verified Tauri v2 plugin documentation and real published plugin source code, but none of it could be compiled in the environment that produced it (no network, no Android SDK — see the note under "Why Tauri, not Capacitor"). If the workflow fails, here's where to look first, roughly in order of likelihood:
 
-## Privacy & security, concretely
+- **Gradle dependency version conflicts** — `plugins/tauri-plugin-dd-native/android/build.gradle.kts` pins specific versions for `play-services-ads` and `user-messaging-platform`. If Gradle reports a version conflict, bumping these to whatever the error message suggests is almost always the fix.
+- **The `compileOnly(project(":tauri-android"))` line** in that same file assumes `tauri android init` names the Tauri runtime module `:tauri-android`, which is standard but could change in a future Tauri CLI release — check `src-tauri/gen/android/settings.gradle.kts` after step 2 above for the actual module name if this line errors.
+- **The `sed` step that forces `compileSdk`/`targetSdk` to 36** in the workflow assumes the generated `build.gradle.kts` uses `compileSdk = <number>` formatting. If a future Tauri CLI template formats this differently, that step will silently not match — open `src-tauri/gen/android/app/build.gradle.kts` from the workflow's logs (or run `tauri android init` yourself anywhere with Node installed, even without the Android SDK, just to inspect the generated file) and adjust the `sed` pattern to match.
+- **Any error mentioning `ipc.localhost` or "Content Security Policy"** — see `web/index.html`'s CSP meta tag comment; this is the one line that makes native calls (saving files, ads) work at all inside the app specifically.
 
-The privacy claim isn't just prose — the page's `Content-Security-Policy` (in `index.html`'s `<head>`) is the actual enforcement of it:
+None of this affects the website — `web/` runs standalone with zero build step regardless of anything above.
 
-```
-default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self';
-font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:;
-worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none';
-base-uri 'self'; form-action 'self';
-```
+### Signing a release build
 
-There is no origin in that policy a file could be sent to. Even a future bug in this code could not open a working upload without also rewriting this policy. (`frame-ancestors` is intentionally not included: the CSP spec only honors that directive from a real HTTP header, not a `<meta>` tag, and GitHub Pages doesn't let this project set one — so it's left out rather than shipped as a policy that looks stricter than it is.)
+Play Store (and most other stores) need a **signed** build, not the debug APK above. This uses the standard Android signing setup, wired into the GitHub Actions workflow via four repository secrets:
 
-Other things checked during the audit: no `eval`/`new Function`, no `innerHTML` fed with a user-controlled filename or status string (`js/ui.js` uses `textContent` for all of it), object URLs are revoked after downloads instead of leaking, FFmpeg's virtual filesystem is cleaned up after every job (success or failure), and every worker/library file is a real, verifiable local file — nothing is a stub.
+1. Generate a keystore once (needs a JDK — this one step does need a real computer, or a cloud shell/Termux; everything else in this project can still be done from a phone):
+   ```
+   keytool -genkeypair -v -keystore release.keystore -alias dd-compressor -keyalg RSA -keysize 2048 -validity 10000
+   ```
+2. In your GitHub repo → **Settings → Secrets and variables → Actions**, add:
+   - `ANDROID_KEYSTORE_BASE64` — the keystore file, base64-encoded (`base64 -w0 release.keystore`)
+   - `ANDROID_KEYSTORE_PASSWORD` — the password you set when generating it
+   - `ANDROID_KEY_ALIAS` — `dd-compressor` (or whatever alias you used above)
+   - `ANDROID_KEY_PASSWORD` — usually the same as the keystore password unless you set a separate one
+3. Re-run the **Build Android app** workflow. It will now also produce a signed `.aab` (for Play Store) and a signed `.apk` (for direct install or other app stores) as a second artifact.
 
-## Testing performed
+**Keep `release.keystore` somewhere safe outside GitHub too.** If you ever lose it, you cannot publish an update to an app already live on Play Store under the same listing — Google cannot reset this for you.
 
-This project can't run a real browser inside the environment it was built in, so testing focused on what could be verified for real rather than assumed:
+---
 
-- **The exact vendored `ffmpeg-core.wasm` binary** was loaded and executed (not just downloaded) — confirmed `ffmpeg version 5.1.4`, confirmed `libx264`/`libvpx`/`aac`/`libmp3lame`/`libopus`/`libvorbis` are all present in this build, and ran a real synthetic encode (FFmpeg's own `lavfi` test source, no external file needed) to confirm the bitrate math produces sane, safe output sizes.
-- **The exact vendored `pdf-lib.min.js`** was used to build a real multi-image PDF, locate its embedded JPEGs via the same object-graph walk `pdf.js` uses, confirm an image with a transparency mask is correctly skipped, mutate and re-save it, and reload the result to confirm it's still a valid PDF. A second real test built a 50-image PDF specifically to exercise the many-image code path (the one a 906-image real-world PDF hit) and confirmed progress is strictly non-decreasing end to end and every image is only ever fully encoded once.
-- **The exact, unmodified `image-worker.js`** was run end-to-end (via a Canvas-API shim) against real generated images, including the specific "small file gets bigger" scenario: an 18 KB JPEG targeting 8 KB now correctly returns ≈8 KB, never the original size or larger.
-- Every JS module's imports/exports were verified to actually resolve (no typos or mismatched names) by loading the real module graph under Node.
-- 23 unit tests cover the pure logic: byte formatting, target-size parsing, file-type detection, and the bits/second → `Nk` flag conversion (including a direct comparison against the original bug's output).
+## Setting up your own AdMob account
 
-**What this doesn't cover**, honestly: real browser behavior (actual Worker threads, real WebP encoding, real user interaction, mobile Safari/Chrome quirks) needs a real browser, which this build environment doesn't have. Before relying on this for something important, open it in a real browser and run through the checklist below.
+Every ad unit ID in this codebase is currently **Google's own official test ID** (safe to build and test with — they always show a clearly-labeled "Test Ad" and never earn real money). Before publishing a release you intend to make public:
 
-### Manual QA checklist (do this after deploying)
-- [ ] Drop a large photo (>5 MB), target 200 KB → confirm output ≤ 200 KB and opens correctly
-- [ ] Drop a small, already-compressed JPEG, target smaller than the file → confirm output is smaller than the *original*, not just "close to target"
-- [ ] Drop a PNG graphic with transparency, format "Auto", aggressive target → confirm it either preserves transparency (WebP) or clearly says it switched formats
-- [ ] Drop an MP4, check the browser console for the FFmpeg log lines, confirm the download plays
-- [ ] Drop a scanned/photo-heavy PDF → confirm output is smaller and text (if any) is still selectable
-- [ ] Drop a text-only PDF (resume, invoice) → confirm it honestly reports little/no change instead of faking a result
-- [ ] Try 3–4 files at once via "Compress all" → confirm they process one at a time without the tab freezing
-- [ ] On a phone: confirm the drop zone, cards, and buttons are all usable one-handed
+1. Create/sign in to an AdMob account at **https://apps.admob.com**.
+2. Add this app (you can do this before or after your first Play Store upload — AdMob supports linking either order).
+3. Create two ad units: one **Banner**, one **App Open**.
+4. Replace the two `TODO`-marked constants in `plugins/tauri-plugin-dd-native/android/src/main/java/com/darshan/compressor/nativebridge/AdUnitIds.kt` with your real ad unit IDs.
+5. Replace the `com.google.android.gms.ads.APPLICATION_ID` value in `plugins/tauri-plugin-dd-native/android/src/main/AndroidManifest.xml` with your real AdMob **App ID** (different from the ad unit IDs — it's the one tied to the app as a whole).
+6. Re-run the Android build.
 
-## Formats
+A release build that still has the test IDs in it isn't just "not making money" — the Mobile Ads SDK deliberately crashes a **release-signed** build that ships with test ad unit IDs, by design on Google's part, specifically so this can't happen by accident. A debug build is unaffected either way.
 
-| Type | Reads | Writes | Engine |
-|---|---|---|---|
-| Image | jpg, png, webp, gif, bmp | jpg, png, webp | Our own code (Canvas/OffscreenCanvas) |
-| Video | mp4, mov, webm, avi, mkv | mp4, webm | FFmpeg (WASM), local |
-| Audio | mp3, wav, m4a, aac, ogg, flac | mp3, aac, ogg, wav | FFmpeg (WASM), local |
-| PDF | pdf | pdf | Our own code + pdf-lib |
-| Other | anything else | `.gz` | Native `CompressionStream` |
+---
 
-A target size is a goal, not a guarantee — an already-compressed file has little room left, and this app says so rather than faking a result.
+## Ad strategy
 
-## Deploying (GitHub Pages)
+This section is the actual policy the code enforces, not just a description of it — see `plugins/tauri-plugin-dd-native/android/.../BannerAdController.kt` and `AppOpenAdManager.kt` for where each rule below is implemented.
 
-1. Push every file in this folder to your repository's default branch, root of the repo (not a subfolder) — the relative paths in `index.html` (`./vendor/...`, `./js/...`) depend on that. Every single file in this project, including both `ffmpeg-core-part*.bin` pieces, is under GitHub's 25MB web-upload limit, so this can be done entirely from a phone browser via **Add file → Upload files**, dragging in the whole folder tree (GitHub's uploader preserves the folder structure) — no git command line required.
-2. Repo → **Settings → Pages → Deploy from a branch** → branch `main`, folder `/ (root)`.
-3. Open the URL GitHub gives you. No build step, no `npm install` needed to run it.
+- **Two ad slots, full stop:** a persistent adaptive banner docked at the bottom of the screen, and one App Open ad shown at most once per cold start, only when online.
+- **No interstitial, rewarded, rewarded-interstitial, or video-only ad formats anywhere in this codebase.** App Open is a distinct AdMob format from Interstitial, specifically designed for the "big, immediately closeable, launch-time" ad — it is not a workaround for the interstitial rule, it's a different, purpose-built format for that exact moment.
+- **Never a placeholder.** The banner slot has zero height until a real ad loads, and collapses back to zero on any load failure (`View.GONE`, not just an empty/transparent view sitting there) — see `BannerAdController.attach()`. The App Open ad simply doesn't show at all if it isn't ready in time — no retry loop, no fallback creative, no delay to the app becoming usable.
+- **The banner never covers anything.** It's docked by resizing the WebView's own container, not by floating on top of it — the page's viewport genuinely gets shorter when a banner is showing, so nothing in the file list or results is ever hidden underneath it (see `web/js/platform.js`'s comment for why this needed no JS-side coordination at all).
+- **Offline stays fully offline.** Ads simply never attempt to load without a connection — no retry loop burning battery/data in the background, and compression itself was never touched by any of this (see PRIVACY.md and the untouched files listed under "What wasn't touched" below).
+- **Consent-gated.** No ad is requested until Google's User Messaging Platform SDK has gathered consent where required — see `ConsentManager.kt`. "Menu → Ad privacy choices" lets a user reopen that same form at any time afterward, not just on first launch.
+- **The website has no ads at all.** AdMob is an app SDK, not something that belongs inside a webpage — see the CSP note in `index.html` for why ads were kept entirely native and outside the page content rather than loaded as a web ad tag inside the WebView (the latter is also against AdMob's own policies for apps that wrap web content).
 
-`.nojekyll` is included so GitHub Pages serves the `vendor/` folder as-is without GitHub's default Jekyll processing getting involved.
+If you want more ad revenue than this conservative default, the two most common next steps — without breaking the "no interstitial/rewarded/video" rule — would be a **native ad** placed between file cards in a long list, or showing the App Open ad on resume-from-background as well as cold start (with a cooldown). Neither is implemented here since the original brief was explicit about not risking uninstalls over incremental revenue; both are a small, contained change to `AppOpenAdManager.kt`/`DdNativePlugin.kt` if you want them later.
 
-## Project structure
+---
 
-```
-index.html
-css/styles.css
-PRIVACY.md / TERMS.md / DISCLAIMER.md
-js/
-  utils.js                 shared helpers + environment-aware size limits
-  ui.js                    DOM rendering (file cards, results, toasts, rename field)
-  main.js                  wiring: drag&drop, state, dispatch
-  app-config.js            the ONE file to edit for a new Android release link
-  capacitor-bridge.js      native save/share for the Android app build
-  menu.js                  the in-app "How it works / Privacy / Terms" menu
-  compressors/
-    image.js               worker wrapper
-    ffmpeg-engine.js        shared FFmpeg singleton + the bitrate-flag fix
-    video.js / audio.js     FFmpeg-based encoders
-    pdf.js                  pdf-lib-based embedded-image recompression
-    generic.js              native gzip fallback
-  workers/
-    image-worker.js         the actual image compression algorithm
-vendor/
-  ffmpeg/                  ffmpeg.js + 814.ffmpeg.js + core/ (ffmpeg-core.js + ffmpeg-core-part1.bin/-part2.bin; real files, MIT/GPL — see THIRD_PARTY_LICENSES.md)
-  pdf-lib/                 pdf-lib.min.js (MIT)
-  fonts/                   Inter, Latin subset (OFL-1.1)
-```
+## Web vs. app UI/UX
 
-## Known limitations (stated honestly, not hidden)
+One `web/` codebase, two intentionally different experiences — `web/js/platform.js` sets an `is-app` or `is-web` class on page load, and `web/css/app-shell.css` (loaded after `styles.css`) contains every rule that differs. Specifically:
 
-- **WebP is only as good as the browser's own encoder.** Older/unusual browsers without WebP support fall back to JPEG automatically in "Auto" mode.
-- **Standalone CMYK JPEGs are refused, not converted.** Same reasoning and same real-world evidence as the PDF case above (see bug #8) — the image engine now detects a CMYK/YCCK JPEG directly from its file header and declines to process it with a clear explanation, rather than risk the same near-black corruption. Convert such a file to RGB in a photo editor first.
-- **A brightness-based safety check runs after every compression** (images and PDF embedded images) and will refuse a result that looks suspiciously different from the original — see the "Android app" section above for what this does and why it's deterministic code, not AI.
-- **PDF compression only touches RGB/Grayscale embedded JPEGs.** CMYK, spot-color (`Separation`/`DeviceN`), PNG-style raw bitmap images, and images with a transparency mask are all left untouched rather than risk incorrect colors or corruption (see `js/compressors/pdf.js` for the exact scope, and README bug #8 for why CMYK specifically is excluded). A print-sourced, CMYK-scanned PDF will see much less size reduction than a PDF whose photos are ordinary RGB JPEGs — that's a deliberate, verified safety choice, not an oversight.
-- **WebM/VP9 encoding is slow** in a single-threaded WASM core — it works, but expect it to take noticeably longer than MP4/H.264 for the same clip, especially on a phone.
-- **Video/audio files above 1.75GB are refused outright**, with an on-screen explanation, rather than being attempted and hanging the tab — FFmpeg's WASM32 build has a hard 4GB address-space ceiling that has to hold the input, working memory, and output all at once. Files above 600MB are allowed but flagged as slow/risky. There is no server fallback by design — that's the privacy trade-off, and it means there's a real ceiling on file size that no amount of client-side cleverness removes.
-- **A many-hundred-image PDF still takes real time.** The search for the right quality setting is fast (a small sample, not the whole document), but the one full pass that actually recompresses every image is inherently proportional to how many images there are — a 900-image scanned book will still take several minutes, it just now shows honest, steadily-advancing progress instead of appearing to restart.
-- Target sizes are estimates for video/audio (bitrate targeting), not byte-exact — real footage compresses differently from a synthetic test signal, and the app reports the actual achieved size rather than assuming the estimate was exact.
+- **The app skips the marketing pitch.** `styles.css`'s hero section (headline, supporting paragraph, "why trust this" framing) makes sense to a first-time website visitor deciding whether to use this tool at all. Someone who already installed the app from a store listing doesn't need re-convincing — the app-only CSS shrinks the header and hides the paragraph, getting to the actual drop zone faster.
+- **No duplicated navigation.** The website's header text links (Formats / Privacy / Source) exist for a visitor scanning for where to click. The app already has all of that (and more) in the hamburger menu, so the app hides the redundant header links — brand mark and menu button only, like a native app bar.
+- **Safe areas and touch targets.** The app adds padding for notches/status bars/gesture-nav bars (`env(safe-area-inset-*)`, only relevant inside the installed app) and slightly larger tap targets for icon buttons.
+- **Bottom ad space.** Handled entirely on the native side by resizing the WebView (see "Ad strategy" above) — nothing web-side needed for this specifically.
 
-## Future ideas (not implemented now, so they're not overclaimed)
+Nothing about the compression engine, the file cards, or the core interaction flow differs between the two — same tool, same trust model, just a shell that fits where it's running.
 
-- Cross-origin isolation via a service-worker trick (`coi-serviceworker`) to unlock the multi-threaded FFmpeg core for faster video encodes.
-- Two-pass video encoding for tighter target-size accuracy (roughly 2x the encode time).
-- A small IndexedDB-backed "recently compressed" history, kept entirely local.
-- AVIF output once browser encoder support is consistent enough to rely on.
+---
+
+## What wasn't touched
+
+The entire compression engine is byte-for-byte identical to the original project — verified during the build (`diff` against the original files, zero differences): `web/js/compressors/*.js`, `web/js/workers/*.js`, `web/js/ui.js`, and everything under `web/vendor/`. Nothing about how images, video, audio, or PDFs get compressed changed in this rewrite — only how the result gets saved (native plugin instead of Capacitor) and what wraps around it (Tauri instead of Capacitor, new UI shell, ads).
+
+---
+
+## What's new beyond the original ask
+
+A few small, low-risk additions on top of the Tauri/ad/UI work, kept intentionally modest rather than bolting on a long feature list:
+
+- **A lifetime "space saved" stat** (`web/js/stats.js`) — a small local counter (localStorage only, never sent anywhere) showing cumulative bytes saved across every file you've compressed. Shows up as a pill next to the privacy badge once you've compressed at least one file.
+- **A signature motion moment** in the result view — the size comparison now includes a bar that visibly shrinks to the real output/original ratio the moment a compression finishes (`web/js/ui.js`'s `showResult`, purely additive — every existing element and class name it produces is untouched). Respects `prefers-reduced-motion`.
+- **"Ad privacy choices"** menu item (app only) — reopens Google's consent form at any time, not just on first prompt.
+- **A new app icon** — see below.
+
+### Ideas not built (to keep this release contained), worth doing next
+
+- A local, on-device "recently compressed" history (IndexedDB) — the original project's own README already flagged this as a natural next step.
+- Multi-language UI (Gujarati/Hindi would be a natural first pair, given this project's origin) — deliberately not attempted here rather than ship machine-translated strings without a native speaker review.
+- Haptic feedback on compression complete, via Tauri's haptics plugin — small polish, left out to keep the plugin surface (and this build's risk) as small as possible.
+
+---
+
+## App icon
+
+The previous icon packed a shield, five format glyphs, and two lines of text into one image — legible on a marketing page, not at a 48px launcher size (and Play/Amazon/Samsung/Xiaomi guidelines all discourage text in app icons for exactly this reason). The new one (`icon-source/app-icon.svg`, rendered to `icon-source/app-icon-1024.png`) is a single geometric mark — two triangles meeting at a teal seam, literally the app's function (compression, squeezed from both sides) — in the app's own graphite/brass/teal palette, no text.
+
+`tauri icon icon-source/app-icon-1024.png` (already wired into the CI workflow) regenerates every required Android size — including adaptive icon foreground/background layers — from that one source file, along with the PWA/website icons at `web/assets/`. To use a different icon entirely, replace `icon-source/app-icon-1024.png` with your own 1024×1024 artwork and re-run the build; nothing else needs to change. You're free to change this however you like — this is a starting point, not a constraint.
+
+---
+
+## Naming
+
+Kept the existing "DD Compressor" brand (your own established name for this project) rather than inventing a new one — just standardized the spelling to "Compressor" throughout the new files for store-listing professionalism (the original "DD Compresser" spelling is still accurate for anything referencing the *original* GitHub repo name, which wasn't renamed). The Android `applicationId`/Tauri `identifier` was kept as `com.darshan.compresser` for continuity with anything already set up under that ID. Change either in `src-tauri/tauri.conf.json` (`identifier`) and `productName` freely — naming is entirely up to you, so nothing here is precious.
+
+---
+
+## Security notes
+
+- **`web/index.html`'s CSP is the same strict `'self'`-only policy as before, plus one addition** (`ipc: http://ipc.localhost` in `connect-src`) — this is Tauri's own internal call channel for the installed app, not a network origin; without it, every native call (saving a file, opening ad consent) would fail its own CSP inside the app specifically. See the comment directly above that meta tag for the full reasoning, including why `src-tauri/tauri.conf.json` deliberately leaves its own CSP setting as `null` so this one tag stays the single source of truth on every platform instead of two policies quietly fighting each other.
+- **`src-tauri/capabilities/default.json` scopes the webview's native access to exactly two commands** (save a file, open ad consent) — no filesystem, shell, or HTTP plugins are exposed, so even `withGlobalTauri`'s broader `window.__TAURI__` surface only actually reaches this app's own narrow plugin.
+- **The FileProvider** (`plugins/.../AndroidManifest.xml`) only ever exposes the app's own `DD Compressor/` output subfolder, nothing else on the device.
+- **R8/ProGuard:** `plugins/tauri-plugin-dd-native/android/consumer-rules.pro` keeps the plugin's reflectively-dispatched command methods from being stripped in a minified release build — worth knowing about if you ever see native calls silently stop working in a release build specifically while a debug build of the same code works fine.
+
+---
+
+## Publishing to app stores
+
+See `STORE_LISTING.md` for store-specific guidance (Play Store, Amazon Appstore, Samsung Galaxy Store, and the Xiaomi/Vivo/Oppo family) — data safety form answers, permissions justification, content rating notes, and what each store needs beyond just the APK/AAB.
+
+---
 
 ## License
 
-This project's own code: the **DD Compressor Community License** (see `LICENSE`) — free for personal, educational, and non-commercial use with attribution; selling it or a modified version of it requires the original author's permission. Vendored third-party code (FFmpeg, pdf-lib, Inter) keeps its own original license regardless — see `THIRD_PARTY_LICENSES.md`.
+Unchanged — see `LICENSE`. This remains the DD Compressor Community License: free to use, study, and modify; selling it or a modified version needs the original author's permission, which as the original author, obviously isn't a constraint on you.
