@@ -1,0 +1,38 @@
+# --- Tauri / Rust ---
+/src-tauri/target/
+/plugins/*/target/
+Cargo.lock
+
+# The Android Studio project is generated fresh by `tauri android init`
+# (see .github/workflows/android-build.yml and README) — nothing under
+# gen/ is committed, the same way the old Capacitor setup didn't commit
+# its generated android/ folder either.
+/src-tauri/gen/
+
+# tauri icon overwrites these from icon-source/app-icon-1024.png on every
+# build — see README "App icon". Keeping a committed starting set (so the
+# repo isn't broken before the first `tauri icon` run) but ignoring the
+# .ico Pillow-generated placeholder specifically has no benefit, so this
+# whole folder stays tracked; nothing to ignore here.
+
+# --- Signing secrets — NEVER commit these ---
+*.jks
+*.keystore
+keystore.properties
+release.keystore
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# --- Android Studio / Gradle (only relevant if gen/ is ever committed locally for debugging) ---
+*.iml
+.gradle/
+local.properties
