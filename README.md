@@ -1,3 +1,5 @@
+https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/
+
 # DD Compressor
 
 Privacy-first file compression — images, video, audio, and PDFs — that runs entirely on your own device. No upload, no server, no account. Works on the web and as an installed Android app (phone and tablet), and works fully offline once loaded.
