@@ -15,10 +15,14 @@ When you add a photo, video, audio file, or PDF to compress:
 
 There is no upload step anywhere in this app's code, because there is no server for a file to be uploaded to. This isn't a policy promise on top of the software — it's an architectural fact you (or anyone) can verify by inspecting the source code, which is public.
 
+## Advertising and consent
+
+The Android build displays AdMob advertising. The web/PWA build does not load AdMob. Where Google's User Messaging Platform requires consent, the app presents the applicable consent flow before requesting ads. AdMob network traffic is separate from local file compression; selected files remain on-device.
+
 ## What this app does NOT do
 
 - It does not upload your files to any server, cloud storage, or third party.
-- It does not use any analytics, tracking, or advertising service.
+- The Android app uses Google AdMob for advertising. The compression engine does not send your selected files or their contents to AdMob.
 - It does not require you to create an account or sign in.
 - It does not read your files for any purpose other than compressing the exact one you chose, at the exact moment you asked it to.
 - It does not share, sell, or otherwise transmit anything about you or your files, because it has no mechanism to do so.
@@ -28,13 +32,13 @@ There is no upload step anywhere in this app's code, because there is no server 
 The installed Android app may request the following, and only for the stated reason:
 
 - **Storage / file saving** — to save your compressed file where you choose (e.g. your Downloads folder), using Android's standard file-saving system. This is used only at the moment you tap "Download" or "Save," for the file you just compressed.
-- **Internet** — included because the underlying app framework (Capacitor/Android WebView) requires it to function as a component, but this app makes no network requests with your files. You can verify this yourself: with your device's Wi-Fi and mobile data both off, every compression feature still works.
+- **Internet** — required by the Android ad SDK to load ads. Compression itself remains local and can continue without internet; ads simply cannot load while offline. You can verify this yourself: with your device's Wi-Fi and mobile data both off, every compression feature still works.
 
 No permission is used to read files you haven't explicitly chosen to compress, and no permission is used to send anything off your device.
 
 ## Data this app does collect
 
-None. There is no account system, no server-side storage, and no analytics SDK in this app. The people who built this app have no visibility into what files you compress, how often you use the app, or any other usage information, because nothing is ever reported back to them.
+None. There is no account system or server-side storage for compressed files. The Android build includes AdMob/Google Mobile Ads for advertising. The people who built this app have no visibility into what files you compress, how often you use the app, or any other usage information, because nothing is ever reported back to them.
 
 ## Third-party components
 
