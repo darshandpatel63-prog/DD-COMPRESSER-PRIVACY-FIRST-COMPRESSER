@@ -95,6 +95,8 @@ async function runCompression(state) {
   updateCompressAllState();
   setBusy(state.el, true, 'Starting…');
 
+  let compressionSucceeded = false;
+
   try {
     const result = await runner(state.file, { targetBytes, format: state.format }, (pct, label) => setProgress(state.el, pct, label));
 
@@ -114,13 +116,17 @@ async function runCompression(state) {
         filename: state.filename, blob: state.blob,
       });
     }
+
+    compressionSucceeded = true;
   } catch (err) {
     console.error(err);
     showError(state.el, err.message || 'Something went wrong compressing this file.');
   } finally {
     state.busy = false;
     updateCompressAllState();
-    // Count only a successful compression from this run.\n    // state.blob may contain a previous successful result after a failed retry.\n    if (state.blob && !state.el.dataset.lastCompressionCounted) {\n      state.el.dataset.lastCompressionCounted = 'true';\n      await recordCompletedCompression();\n    }
+    // Count this run only when the current compression actually succeeded.
+    // A failed retry must not reuse a blob from an earlier successful run.
+    if (compressionSucceeded) await recordCompletedCompression();
   }
 }
 
