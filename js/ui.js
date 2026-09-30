@@ -217,6 +217,10 @@ export function showResult(cardEl, { originalBytes, targetBytes, outputBytes, st
     dlBtn.innerHTML = icon('download') + ' Download';
     actionsRow.appendChild(dlBtn);
     result.appendChild(actionsRow);
+    const adSpace = document.createElement('div');
+    adSpace.className = 'result-ad-space';
+    adSpace.setAttribute('aria-hidden', 'true');
+    result.appendChild(adSpace);
   }
 }
 
