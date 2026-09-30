@@ -50,9 +50,9 @@ jobs:
           rm -f package.json package-lock.json
           npm init -y
           npm install --save-exact \
-            @capacitor/cli@8.5.0 \
-            @capacitor/core@8.5.0 \
-            @capacitor/android@8.5.0 \
+            @capacitor/cli@8.5.2 \
+            @capacitor/core@8.5.2 \
+            @capacitor/android@8.5.2 \
             @capacitor/filesystem@8.0.0 \
             @capacitor/share@8.0.0 \
             @capacitor-community/admob@8.1.0
