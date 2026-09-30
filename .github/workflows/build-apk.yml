@@ -54,7 +54,8 @@ jobs:
             @capacitor/core@8.5.0 \
             @capacitor/android@8.5.0 \
             @capacitor/filesystem@8.0.0 \
-            @capacitor/share@8.0.0
+            @capacitor/share@8.0.0 \
+            @capacitor-community/admob@8.1.0
 
       - name: 🔎 Verify Capacitor plugins
         shell: bash
@@ -72,6 +73,18 @@ jobs:
             "DD Compressor" \
             "com.darshan.compresser" \
             --web-dir www
+
+      - name: 🔐 Require AdMob release configuration
+        shell: bash
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_AD_UNIT_ID: ${{ secrets.ADMOB_BANNER_AD_UNIT_ID }}
+          ADMOB_INTERSTITIAL_AD_UNIT_ID: ${{ secrets.ADMOB_INTERSTITIAL_AD_UNIT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$ADMOB_APP_ID" || { echo "Missing GitHub secret ADMOB_APP_ID" >&2; exit 1; }
+          test -n "$ADMOB_BANNER_AD_UNIT_ID" || { echo "Missing GitHub secret ADMOB_BANNER_AD_UNIT_ID" >&2; exit 1; }
+          test -n "$ADMOB_INTERSTITIAL_AD_UNIT_ID" || { echo "Missing GitHub secret ADMOB_INTERSTITIAL_AD_UNIT_ID" >&2; exit 1; }
 
       - name: 🤖 Add Android platform
         shell: bash
@@ -124,6 +137,28 @@ jobs:
           test -f "$RES/mipmap-mdpi/dd_compressor_icon.png"
           test -f "$RES/mipmap-xxxhdpi/dd_compressor_icon.png"
 
+      - name: 📢 Configure AdMob
+        shell: bash
+        env:
+          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
+          ADMOB_BANNER_AD_UNIT_ID: ${{ secrets.ADMOB_BANNER_AD_UNIT_ID }}
+          ADMOB_INTERSTITIAL_AD_UNIT_ID: ${{ secrets.ADMOB_INTERSTITIAL_AD_UNIT_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/src/main/res/values
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path('android/app/src/main/res/values/strings.xml'); s=p.read_text()
+          if 'name="admob_app_id"' not in s: s=s.replace('</resources>', f'    <string name="admob_app_id">{os.environ["ADMOB_APP_ID"]}</string>\\n</resources>')
+          p.write_text(s)
+          m=Path('android/app/src/main/AndroidManifest.xml'); s=m.read_text()
+          marker='    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="@string/admob_app_id" />\\n'
+          if 'com.google.android.gms.ads.APPLICATION_ID' not in s: s=s.replace('</application>', marker+'</application>')
+          m.write_text(s)
+          PY
+          sed -i "s/__ADMOB_APP_ID__/$ADMOB_APP_ID/g; s/__ADMOB_BANNER_AD_UNIT_ID__/$ADMOB_BANNER_AD_UNIT_ID/g; s/__ADMOB_INTERSTITIAL_AD_UNIT_ID__/$ADMOB_INTERSTITIAL_AD_UNIT_ID/g" www/js/admob.js
+
       - name: 🔄 Sync Capacitor and register native plugins
         shell: bash
         run: |
@@ -153,6 +188,13 @@ jobs:
           chmod +x gradlew
           ./gradlew --version
 
+      - name: 📏 Report native payload size
+        shell: bash
+        run: |
+          set -euo pipefail
+          BYTES=$(du -sb www | cut -f1)
+          awk "BEGIN {printf \"Native web payload: %.2f MB\\n\", $BYTES/1024/1024}"
+
       - name: 🏗️ Build Debug APK
         shell: bash
         run: |
@@ -168,6 +210,15 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
           ls -lh "$APK"
+
+      - name: 📏 Enforce final APK size target
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          SIZE=$(stat -c%s "$APK")
+          awk "BEGIN {printf \"Final debug APK size: %.2f MB\\n\", $SIZE/1024/1024}"
+          if [ "$SIZE" -ge $((25*1024*1024)) ]; then echo "ERROR: final APK is not below 25 MB" >&2; exit 1; fi
 
       - name: 📦 Upload APK
         uses: actions/upload-artifact@v7
