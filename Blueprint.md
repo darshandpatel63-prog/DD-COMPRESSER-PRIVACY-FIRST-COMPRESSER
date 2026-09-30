@@ -51,7 +51,8 @@ DD Compressor is a privacy-first, client-side file compressor. User-selected fil
 ## Android monetization architecture
 - `js/admob.js` contains the native-only AdMob control layer.
 - The web/PWA build remains functional without AdMob.
-- The Android build injects AdMob application/ad-unit IDs from GitHub Actions Secrets; IDs are not committed to the repository.
+- The first/store-first Android build keeps AdMob fully disabled and does not install the AdMob plugin.
+- A later monetized Android build installs the AdMob plugin only when `ads_enabled=true` and injects AdMob application/ad-unit IDs from GitHub Actions Secrets; IDs are not committed to the repository.
 - UMP consent is requested before ads where required.
 - One native adaptive banner is shown at the bottom and the WebView reserves bottom space so the Download button is not covered.
 - One interstitial is attempted only after 20 completed compression jobs; it is never shown while compression is running.
