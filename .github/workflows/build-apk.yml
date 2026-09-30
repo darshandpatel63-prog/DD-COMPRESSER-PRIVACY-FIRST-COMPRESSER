@@ -157,7 +157,7 @@ jobs:
           if 'com.google.android.gms.ads.APPLICATION_ID' not in s: s=s.replace('</application>', marker+'</application>')
           m.write_text(s)
           PY
-          sed -i "s/__ADMOB_APP_ID__/$ADMOB_APP_ID/g; s/__ADMOB_BANNER_AD_UNIT_ID__/$ADMOB_BANNER_AD_UNIT_ID/g; s/__ADMOB_INTERSTITIAL_AD_UNIT_ID__/$ADMOB_INTERSTITIAL_AD_UNIT_ID/g" www/js/admob.js
+          sed -i "s|__ADMOB_APP_ID__|$ADMOB_APP_ID|g; s|__ADMOB_BANNER_AD_UNIT_ID__|$ADMOB_BANNER_AD_UNIT_ID|g; s|__ADMOB_INTERSTITIAL_AD_UNIT_ID__|$ADMOB_INTERSTITIAL_AD_UNIT_ID|g" www/js/admob.js
 
       - name: 🔄 Sync Capacitor and register native plugins
         shell: bash
