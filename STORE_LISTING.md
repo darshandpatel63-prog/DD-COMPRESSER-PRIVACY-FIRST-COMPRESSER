@@ -15,8 +15,8 @@ Practical guidance for submitting the built app to Google Play, Amazon Appstore,
 > • Compress images, video, audio, and PDFs
 > • Pick a target size or quality — see the result before you save
 > • Nothing you compress ever leaves your device
-> • Works with no internet connection
-> • Free, supported by a small bottom banner ad and an occasional closeable ad on launch — no interstitial, rewarded, or video ads, ever
+> • Compression works offline; advertising requires internet access
+> • Free, supported by an AdMob banner and an occasional interstitial after 20 completed compression jobs
 >
 > Your files are yours. This app doesn't have a server to send them to even if it wanted to.
 
@@ -93,7 +93,7 @@ Every store in this list scrutinizes permissions against what the app actually d
 ## Common rejection reasons this build already accounts for
 
 - **"Privacy policy doesn't match actual data collection"** — `PRIVACY.md` was rewritten specifically to accurately describe the AdMob data flow rather than leave a stale "we collect nothing" claim once ads were added (see `PRIVACY.md`'s "The Android app is free and shows ads" section).
-- **"Ad implementation is disruptive"** — no interstitial/rewarded/video anywhere; see "Ad strategy" in `Blueprint.md`.
+- **"Ad implementation is disruptive"** — the banner is kept separate from interactive controls, and the interstitial is only attempted after 20 completed compression jobs.
 - **"Missing ad consent mechanism"** — UMP consent flow + a persistent "Ad privacy choices" menu entry are both implemented, not just the first-launch prompt.
 - **"Unjustified permissions"** — only two permissions, both directly tied to a visible feature (ads), no storage permission needed at all.
 - **"App icon contains illegible text/clutter"** — replaced; see `Blueprint.md` "App icon".
