@@ -1,6 +1,6 @@
 # Store listing & submission guide
 
-Practical guidance for submitting the built app to Google Play, Amazon Appstore, Samsung Galaxy Store, and the Xiaomi/Vivo/Oppo family — written to avoid the most common review rejections for a utility app with ads. None of this is legal advice; it's a checklist, not a guarantee any store approves any specific submission.
+Practical guidance for submitting the built app to Google Play, Amazon Appstore, Samsung Galaxy Store, and the Xiaomi/Vivo/Oppo family — written for the first ad-free store release and the later optional monetized release. None of this is legal advice; it's a checklist, not a guarantee any store approves any specific submission.
 
 ---
 
@@ -15,8 +15,9 @@ Practical guidance for submitting the built app to Google Play, Amazon Appstore,
 > • Compress images, video, audio, and PDFs
 > • Pick a target size or quality — see the result before you save
 > • Nothing you compress ever leaves your device
-> • Compression works offline; advertising requires internet access
-> • Free, supported by an AdMob banner and an occasional interstitial after 20 completed compression jobs
+> • Compression works offline
+> • First store release: free and ad-free
+> • Later monetized release: AdMob banner + occasional interstitial after 20 completed compression jobs
 >
 > Your files are yours. This app doesn't have a server to send them to even if it wanted to.
 
@@ -38,16 +39,16 @@ The Play Console's Data safety form asks what data the app collects/shares. Base
 
 | Question | Answer for this app |
 |---|---|
-| Does your app collect or share user data? | **Yes** (only via the AdMob/UMP SDKs — the app's own code collects nothing) |
-| Data types collected | **Device or other identifiers** (advertising ID) |
-| Is data encrypted in transit? | Yes (handled by the AdMob SDK itself) |
+| Does your app collect or share user data? | **No in the first ad-free build.** A later monetized build will use the AdMob/UMP SDKs. |
+| Data types collected | **None in the first ad-free build.** Later monetized builds may process advertising/device identifiers through AdMob. |
+| Is data encrypted in transit? | Not applicable to ads in the first ad-free build. |
 | Can users request data deletion? | Not applicable — nothing is stored server-side by this app; advertising ID behavior follows the user's own device-level ad settings |
-| Purpose | **Advertising or marketing** |
-| Is data collection required or optional? | Optional in effect — ads (and so this data flow) simply don't request without consent where consent is required, and a user can decline ad personalization via Menu → Ad privacy choices |
+| Purpose | None in the first ad-free build; advertising/marketing in later monetized builds. |
+| Is data collection required or optional? | No advertising data flow in the first ad-free build. Later monetized builds request ads only after the applicable consent flow. |
 
 Do **not** declare file contents, filenames, or any file metadata as collected — none of it is; the compression engine has no network access at all (see `PRIVACY.md`).
 
-**Ads declaration:** mark "Yes, my app contains ads." **Target audience / content rating:** answer as general audience, not primarily directed at children — the ad configuration in this codebase already reflects that (see `AndroidManifest.xml`'s `DELAY_APP_MEASUREMENT_INIT` note and `PRIVACY.md`'s "Children's privacy").
+**First ad-free release:** mark "No" for contains ads. **Later monetized release:** update the store declaration to "Yes" and complete the applicable AdMob/privacy disclosures. **Target audience / content rating:** answer based on the actual release being submitted.
 
 **Content rating questionnaire:** this is a utility app with no user-generated content, no violence, no user communication features — should land in the lowest rating tier (e.g. "Everyone" / PEGI 3) on a standard IARC questionnaire.
 
@@ -77,14 +78,14 @@ Every store in this list scrutinizes permissions against what the app actually d
 
 ### Amazon Appstore
 - Accepts a signed APK directly (no AAB requirement) — use the release `.apk` artifact.
-- Runs its own app scan partly independent of Google Play services availability — since this app's ads depend on Google Play services being present, note in your submission that ads gracefully do not appear on devices without Play services (the banner/App Open ad simply never loads, per the "never a placeholder" behavior in `Blueprint.md` "Ad strategy") rather than crashing.
+- Runs its own app scan partly independent of Google Play services availability — the first release has no ad SDK. For a later monetized build, verify the store's current ad/Google Play services requirements before submission.
 
 ### Samsung Galaxy Store
-- Also accepts a signed APK. Samsung's review specifically checks that the app functions correctly on Samsung's own device/One UI skin — since this app is a standard WebView-based Tauri app with no Samsung-specific APIs involved, no special handling should be needed, but test on a real Samsung device (or Samsung's remote test lab) before submitting if possible.
-- Samsung independently reviews ad placement for intrusiveness — the "no interstitial/rewarded/video, banner + one closeable app-open ad" policy in this codebase (see `Blueprint.md` "Ad strategy") is deliberately on the conservative end specifically to clear this kind of review comfortably.
+- Also accepts a signed APK. Samsung's review specifically checks that the app functions correctly on Samsung's own device/One UI skin — since this app is a standard Capacitor-based WebView app with no Samsung-specific APIs involved, no special handling should be needed, but test on a real Samsung device (or Samsung's remote test lab) before submitting if possible.
+- Samsung independently reviews ad placement for intrusiveness — the later monetized build should be reviewed against the store's current ad-placement policy before submission.
 
 ### Xiaomi (GetApps) / Vivo App Store / Oppo App Market
-- All three accept signed APKs and run comparatively strict manual review, especially around permissions and ad behavior — the minimal permission set and no-interstitial ad policy in this codebase were chosen with exactly this in mind.
+- All three accept signed APKs and run comparatively strict manual review, especially around permissions and ad behavior — the first ad-free build has no advertising SDK; review the later monetized build separately for the store's current ad and permission requirements.
 - These stores often require a **local contact/registration** (varies by store and your region) separate from the app submission itself — check each store's current developer registration requirements before submitting, as these change independently of anything in this codebase.
 - Expect a longer manual review window than Play/Amazon for these three.
 
@@ -92,11 +93,11 @@ Every store in this list scrutinizes permissions against what the app actually d
 
 ## Common rejection reasons this build already accounts for
 
-- **"Privacy policy doesn't match actual data collection"** — `PRIVACY.md` was rewritten specifically to accurately describe the AdMob data flow rather than leave a stale "we collect nothing" claim once ads were added (see `PRIVACY.md`'s "The Android app is free and shows ads" section).
+- **"Privacy policy doesn't match actual data collection"** — keep `PRIVACY.md` aligned with the exact build being submitted. The first release is ad-free; the later monetized release must disclose AdMob/UMP data processing.
 - **"Ad implementation is disruptive"** — the banner is kept separate from interactive controls, and the interstitial is only attempted after 20 completed compression jobs.
 - **"Missing ad consent mechanism"** — UMP consent flow + a persistent "Ad privacy choices" menu entry are both implemented, not just the first-launch prompt.
-- **"Unjustified permissions"** — only two permissions, both directly tied to a visible feature (ads), no storage permission needed at all.
+- **"Unjustified permissions"** — the first build should request only permissions actually required by its enabled features; do not add an ad-related permission/SDK until the monetized build is enabled.
 - **"App icon contains illegible text/clutter"** — replaced; see `Blueprint.md` "App icon".
-- **"Broken/placeholder ad space"** — structurally impossible in this build; the banner container has zero height until a real ad loads (see "Ad strategy").
+- **"Broken/placeholder ad space"** — the first ad-free build has no ad space. The later monetized build should reserve space only when a real native banner is loaded.
 
 None of this guarantees approval — store policies and reviewers vary — but each addresses a specific, common, named rejection reason rather than being a generic best-effort claim.
