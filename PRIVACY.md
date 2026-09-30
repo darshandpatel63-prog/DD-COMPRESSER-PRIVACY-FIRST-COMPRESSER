@@ -17,7 +17,7 @@ There is no upload step anywhere in this app's code, because there is no server 
 
 ## Advertising and consent
 
-The Android build displays AdMob advertising. The web/PWA build does not load AdMob. Where Google's User Messaging Platform requires consent, the app presents the applicable consent flow before requesting ads. AdMob network traffic is separate from local file compression; selected files remain on-device.
+The current store-first Android build is ad-free and does not include the AdMob SDK. A later monetized Android build may include Google AdMob. When that monetized build is enabled, and where Google's User Messaging Platform requires consent, the app presents the applicable consent flow before requesting ads. AdMob network traffic is separate from local file compression; selected files remain on-device.
 
 ## What this app does NOT do
 
@@ -38,7 +38,7 @@ No permission is used to read files you haven't explicitly chosen to compress, a
 
 ## Data and advertising SDKs
 
-The app itself does not maintain an account, server-side file storage, or an analytics database. The Android build includes Google AdMob/Google Mobile Ads. That third-party SDK can process advertising-related information (for example, advertising/device identifiers, diagnostics, and ad interaction or measurement data) according to Google's services and the user's consent/device settings. This data flow is separate from the compression engine: the contents, names, and bytes of files selected for compression are not sent to AdMob.
+The app itself does not maintain an account, server-side file storage, or an analytics database. The monetized Android build includes Google AdMob/Google Mobile Ads. The current store-first build does not include that SDK. When present, the third-party SDK can process advertising-related information (for example, advertising/device identifiers, diagnostics, and ad interaction or measurement data) according to Google's services and the user's consent/device settings. This data flow is separate from the compression engine: the contents, names, and bytes of files selected for compression are not sent to AdMob.
 
 ## Third-party components
 
