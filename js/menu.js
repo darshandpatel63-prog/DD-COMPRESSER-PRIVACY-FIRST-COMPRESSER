@@ -3,7 +3,7 @@ import { ANDROID_APP_DOWNLOAD_URL } from './app-config.js';
 
 // Kept deliberately simple and non-technical — this is a public-facing
 // explanation, not documentation. The real technical writeup (algorithms,
-// libraries, specific engines) lives in README.md in the source repository
+// libraries, specific engines) lives in Blueprint.md in the source repository
 // for anyone who wants it; this panel is for someone who just wants to
 // know, in plain terms, what happens to their file.
 const PANELS = {
