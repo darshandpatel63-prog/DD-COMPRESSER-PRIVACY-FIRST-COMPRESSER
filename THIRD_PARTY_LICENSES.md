@@ -1,7 +1,7 @@
 # Third-party licenses
 
 This project vendors a small number of open-source libraries locally under
-`vendor/` (see README "Local-first dependencies" for why they're local
+`vendor/` (see Blueprint "Local-first dependencies" for why they're local
 instead of CDN-loaded). Each keeps its own original license, listed below.
 None of them are modified — they're the unmodified, real distribution
 files published by their respective projects.
