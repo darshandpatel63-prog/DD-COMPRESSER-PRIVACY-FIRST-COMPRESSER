@@ -36,9 +36,9 @@ The installed Android app may request the following, and only for the stated rea
 
 No permission is used to read files you haven't explicitly chosen to compress, and no permission is used to send anything off your device.
 
-## Data this app does collect
+## Data and advertising SDKs
 
-None. There is no account system or server-side storage for compressed files. The Android build includes AdMob/Google Mobile Ads for advertising. The people who built this app have no visibility into what files you compress, how often you use the app, or any other usage information, because nothing is ever reported back to them.
+The app itself does not maintain an account, server-side file storage, or an analytics database. The Android build includes Google AdMob/Google Mobile Ads. That third-party SDK can process advertising-related information (for example, advertising/device identifiers, diagnostics, and ad interaction or measurement data) according to Google's services and the user's consent/device settings. This data flow is separate from the compression engine: the contents, names, and bytes of files selected for compression are not sent to AdMob.
 
 ## Third-party components
 
