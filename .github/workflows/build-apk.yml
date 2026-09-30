@@ -45,11 +45,23 @@ jobs:
 
       - name: 📦 Initialize Capacitor project
         shell: bash
+        env:
+          ADS_ENABLED: ${{ inputs.ads_enabled }}
         run: |
           set -euo pipefail
           rm -f package.json package-lock.json
           npm init -y
-          npm install --save-exact             @capacitor/cli@8.5.2             @capacitor/core@8.5.2             @capacitor/android@8.5.2             @capacitor/filesystem@8.0.0             @capacitor/share@8.0.0             @capacitor-community/admob@8.1.0
+          npm install --save-exact \
+            @capacitor/cli@8.5.2 \
+            @capacitor/core@8.5.2 \
+            @capacitor/android@8.5.2 \
+            @capacitor/filesystem@8.0.0 \
+            @capacitor/share@8.0.0
+          if [ "$ADS_ENABLED" = "true" ]; then
+            npm install --save-exact @capacitor-community/admob@8.1.0
+          else
+            echo "STORE-FIRST BUILD: skipping AdMob plugin to keep ads/SDK out of the first APK."
+          fi
 
       - name: ⚡ Initialize Capacitor
         shell: bash
