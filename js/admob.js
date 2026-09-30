@@ -1,0 +1,14 @@
+// Native AdMob integration for the Android build.
+const TEST_BANNER = 'ca-app-pub-3940256099942544/6300978111';
+const TEST_INTERSTITIAL = 'ca-app-pub-3940256099942544/1033173712';
+const config = { appId:'__ADMOB_APP_ID__', bannerId:'__ADMOB_BANNER_AD_UNIT_ID__', interstitialId:'__ADMOB_INTERSTITIAL_AD_UNIT_ID__' };
+let initialized=false, consentReady=false, interstitialPrepared=false, completedCompressionCount=0;
+function nativeAdMob(){ return window.Capacitor?.Plugins?.AdMob || null; }
+function configured(){ return !Object.values(config).some(v=>String(v).includes('__ADMOB_')); }
+function ids(){ return configured()?config:{...config,bannerId:TEST_BANNER,interstitialId:TEST_INTERSTITIAL}; }
+export function isAdMobAvailable(){ return !!nativeAdMob(); }
+export async function initializeAds(){ const AdMob=nativeAdMob(); if(!AdMob||initialized) return false; try{ await AdMob.initialize(); initialized=true; let c=await AdMob.requestConsentInfo(); if(!c?.canRequestAds&&c?.isConsentFormAvailable) c=await AdMob.showConsentForm(); consentReady=!!c?.canRequestAds; if(consentReady) await prepareInterstitial(); return consentReady; }catch(e){ console.warn('AdMob initialization failed:',e); return false; } }
+export async function showBanner(){ const AdMob=nativeAdMob(); if(!AdMob||!consentReady) return false; try{ await AdMob.showBanner({adId:ids().bannerId,adSize:'ADAPTIVE_BANNER',position:'BOTTOM_CENTER',margin:0}); return true; }catch(e){ try{ await AdMob.showBanner({adId:ids().bannerId,adSize:'BANNER',position:'BOTTOM_CENTER',margin:0}); return true; }catch(e2){ console.warn('AdMob banner failed:',e2); return false; } } }
+export async function prepareInterstitial(){ const AdMob=nativeAdMob(); if(!AdMob||!consentReady) return false; try{ await AdMob.prepareInterstitial({adId:ids().interstitialId}); interstitialPrepared=true; return true; }catch(e){ interstitialPrepared=false; console.warn('AdMob interstitial prepare failed:',e); return false; } }
+export async function recordCompletedCompression(){ completedCompressionCount++; if(completedCompressionCount<20) return; completedCompressionCount=0; const AdMob=nativeAdMob(); if(!AdMob||!consentReady) return; try{ if(!interstitialPrepared) await prepareInterstitial(); if(interstitialPrepared){ await AdMob.showInterstitial(); interstitialPrepared=false; await prepareInterstitial(); } }catch(e){ console.warn('AdMob interstitial failed:',e); interstitialPrepared=false; await prepareInterstitial(); } }
+export async function showAdPrivacyOptions(){ const AdMob=nativeAdMob(); if(!AdMob||!consentReady) return false; try{ await AdMob.showPrivacyOptionsForm(); return true; }catch(e){ console.warn('Ad privacy options unavailable:',e); return false; } }
