@@ -120,7 +120,7 @@ async function runCompression(state) {
   } finally {
     state.busy = false;
     updateCompressAllState();
-    if (state.blob) await recordCompletedCompression();
+    // Count only a successful compression from this run.\n    // state.blob may contain a previous successful result after a failed retry.\n    if (state.blob && !state.el.dataset.lastCompressionCounted) {\n      state.el.dataset.lastCompressionCounted = 'true';\n      await recordCompletedCompression();\n    }
   }
 }
 
