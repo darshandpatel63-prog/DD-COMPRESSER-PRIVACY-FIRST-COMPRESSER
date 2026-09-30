@@ -48,8 +48,24 @@ DD Compressor is a privacy-first, client-side file compressor. User-selected fil
 - `package.json` — described Tauri commands/dependencies, while the actual APK workflow creates its own Capacitor project dynamically and does not use this package file.
 - `vendor/ffmpeg/core/.keep` — redundant because the directory already contains the required FFmpeg core files.
 
-## Known issue to address separately
-The current JavaScript imports `js/capacitor-bridge.js` from `main.js`, `menu.js`, and `utils.js`, but that file is not present in the current repository tree. This is an existing functional issue, not an unused-file cleanup target. Do not silently remove or replace related runtime files until the bridge implementation is verified.
+## Android monetization architecture
+- `js/admob.js` contains the native-only AdMob control layer.
+- The web/PWA build remains functional without AdMob.
+- The Android build injects AdMob application/ad-unit IDs from GitHub Actions Secrets; IDs are not committed to the repository.
+- UMP consent is requested before ads where required.
+- One native adaptive banner is shown at the bottom and the WebView reserves bottom space so the Download button is not covered.
+- One interstitial is attempted only after 20 completed compression jobs; it is never shown while compression is running.
+- The current Capacitor AdMob JS API manages one banner position at a time. Simultaneous top + bottom banners or true inline native ads inside each WebView result card require a custom native Android view/plugin. The current build deliberately does not overlay a second ad over the app content.
+
+## Store release architecture
+- Capacitor 8 Android targets SDK 36; Play publishing uses AAB, while Indus and other stores can accept signed APK/AAB/APKS formats.
+- Release signing credentials must stay in GitHub Actions Secrets; never commit a keystore.
+
+## Size budget
+- Requested hard target: final APK strictly below 25 MB.
+- The workflow reports the native web payload and fails the final APK build if the generated APK reaches 25 MB or more.
+- FFmpeg WASM is the dominant size constraint. Current FFmpeg WebAssembly cores are tens of MB before APK compression, so the <25 MB requirement must be measured on the actual release artifact rather than promised in advance.
+- If the release artifact exceeds 25 MB, do not delete required FFmpeg files. The next options are a smaller purpose-built native/media engine or on-demand feature delivery.
 
 ## Cleanup rule for future changes
 Before deleting any file, search the complete repository for imports, script/style references, asset paths, workflow references, legal references, and deployment references. Delete only when no real use remains.
