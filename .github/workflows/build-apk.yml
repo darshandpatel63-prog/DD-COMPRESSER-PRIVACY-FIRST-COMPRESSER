@@ -2,6 +2,12 @@ name: 🚀 Build Android APK (DD Compressor)
 
 on:
   workflow_dispatch:
+    inputs:
+      ads_enabled:
+        description: "Enable AdMob for this build (leave OFF for first store release)"
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -33,162 +39,92 @@ jobs:
           set -euo pipefail
           rm -rf www
           mkdir -p www
-          rsync -a \
-            --exclude='www' \
-            --exclude='.git' \
-            --exclude='.github' \
-            --exclude='android' \
-            --exclude='node_modules' \
-            ./ www/
+          rsync -a --exclude='www' --exclude='.git' --exclude='.github' --exclude='android' --exclude='node_modules' ./ www/
           test -f www/index.html
           test -f www/assets/dd-compressor-icon-512.png
 
-      - name: 📦 Initialize Node project
+      - name: 📦 Initialize Capacitor project
         shell: bash
         run: |
           set -euo pipefail
           rm -f package.json package-lock.json
           npm init -y
-          npm install --save-exact \
-            @capacitor/cli@8.5.2 \
-            @capacitor/core@8.5.2 \
-            @capacitor/android@8.5.2 \
-            @capacitor/filesystem@8.0.0 \
-            @capacitor/share@8.0.0 \
-            @capacitor-community/admob@8.1.0
-
-      - name: 🔎 Verify Capacitor plugins
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx cap --version
-          npm list @capacitor/cli @capacitor/core @capacitor/android @capacitor/filesystem @capacitor/share
+          npm install --save-exact             @capacitor/cli@8.5.2             @capacitor/core@8.5.2             @capacitor/android@8.5.2             @capacitor/filesystem@8.0.0             @capacitor/share@8.0.0             @capacitor-community/admob@8.1.0
 
       - name: ⚡ Initialize Capacitor
         shell: bash
         run: |
           set -euo pipefail
           rm -rf android
-          npx cap init \
-            "DD Compressor" \
-            "com.darshan.compresser" \
-            --web-dir www
+          npx cap init "DD Compressor" "com.darshan.compresser" --web-dir www
+          npx cap add android
 
-      - name: 🔐 Require AdMob release configuration
+      - name: 📢 Configure AdMob mode
         shell: bash
         env:
+          ADS_ENABLED: ${{ inputs.ads_enabled }}
           ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
           ADMOB_BANNER_AD_UNIT_ID: ${{ secrets.ADMOB_BANNER_AD_UNIT_ID }}
           ADMOB_INTERSTITIAL_AD_UNIT_ID: ${{ secrets.ADMOB_INTERSTITIAL_AD_UNIT_ID }}
         run: |
           set -euo pipefail
-          test -n "$ADMOB_APP_ID" || { echo "Missing GitHub secret ADMOB_APP_ID" >&2; exit 1; }
-          test -n "$ADMOB_BANNER_AD_UNIT_ID" || { echo "Missing GitHub secret ADMOB_BANNER_AD_UNIT_ID" >&2; exit 1; }
-          test -n "$ADMOB_INTERSTITIAL_AD_UNIT_ID" || { echo "Missing GitHub secret ADMOB_INTERSTITIAL_AD_UNIT_ID" >&2; exit 1; }
-
-      - name: 🤖 Add Android platform
-        shell: bash
-        run: |
-          set -euo pipefail
-          npx cap add android
+          if [ "$ADS_ENABLED" != "true" ]; then
+            echo "STORE-FIRST BUILD: AdMob disabled."
+            exit 0
+          fi
+          test -n "$ADMOB_APP_ID" || { echo "Missing ADMOB_APP_ID secret for monetized build." >&2; exit 1; }
+          test -n "$ADMOB_BANNER_AD_UNIT_ID" || { echo "Missing ADMOB_BANNER_AD_UNIT_ID secret for monetized build." >&2; exit 1; }
+          test -n "$ADMOB_INTERSTITIAL_AD_UNIT_ID" || { echo "Missing ADMOB_INTERSTITIAL_AD_UNIT_ID secret for monetized build." >&2; exit 1; }
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p=Path('www/js/admob.js')
+          s=p.read_text()
+          s=s.replace("enabled: false", "enabled: true", 1)
+          s=s.replace("testMode: false", "testMode: false", 1)
+          s=s.replace("appId: ''", "appId: " + repr(os.environ["ADMOB_APP_ID"]), 1)
+          s=s.replace("bannerId: ''", "bannerId: " + repr(os.environ["ADMOB_BANNER_AD_UNIT_ID"]), 1)
+          s=s.replace("interstitialId: ''", "interstitialId: " + repr(os.environ["ADMOB_INTERSTITIAL_AD_UNIT_ID"]), 1)
+          p.write_text(s)
+          r=Path('android/app/src/main/res/values/strings.xml')
+          s=r.read_text()
+          s=s.replace('</resources>', '    <string name="admob_app_id">'+os.environ["ADMOB_APP_ID"]+'</string>\n</resources>')
+          r.write_text(s)
+          m=Path('android/app/src/main/AndroidManifest.xml')
+          s=m.read_text()
+          marker='    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="@string/admob_app_id" />\n'
+          if 'com.google.android.gms.ads.APPLICATION_ID' not in s:
+              s=s.replace('</application>', marker+'</application>')
+          m.write_text(s)
+          PY
 
       - name: 🎨 Install DD Compressor Android launcher icon
         shell: bash
         run: |
           set -euo pipefail
-
           ICON="www/assets/dd-compressor-icon-512.png"
-          test -f "$ICON"
-
           sudo apt-get update -qq
           sudo apt-get install -y -qq imagemagick
-
           RES="android/app/src/main/res"
-          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            mkdir -p "$RES/mipmap-$d"
-          done
-
-          # Ubuntu runners may provide ImageMagick 6, where the executable is
-          # `convert` rather than the ImageMagick 7 `magick` command.
-          if command -v magick >/dev/null 2>&1; then
-            IM_CMD="magick"
-          elif command -v convert >/dev/null 2>&1; then
-            IM_CMD="convert"
-          else
-            echo "ImageMagick executable not found after installation." >&2
-            exit 1
-          fi
-
-          echo "Using ImageMagick command: $IM_CMD"
-          "$IM_CMD" --version | head -n 2
-
-          "$IM_CMD" "$ICON" -resize 48x48!   "$RES/mipmap-mdpi/dd_compressor_icon.png"
-          "$IM_CMD" "$ICON" -resize 72x72!   "$RES/mipmap-hdpi/dd_compressor_icon.png"
-          "$IM_CMD" "$ICON" -resize 96x96!   "$RES/mipmap-xhdpi/dd_compressor_icon.png"
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do mkdir -p "$RES/mipmap-$d"; done
+          if command -v magick >/dev/null 2>&1; then IM_CMD="magick"; else IM_CMD="convert"; fi
+          "$IM_CMD" "$ICON" -resize 48x48! "$RES/mipmap-mdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 72x72! "$RES/mipmap-hdpi/dd_compressor_icon.png"
+          "$IM_CMD" "$ICON" -resize 96x96! "$RES/mipmap-xhdpi/dd_compressor_icon.png"
           "$IM_CMD" "$ICON" -resize 144x144! "$RES/mipmap-xxhdpi/dd_compressor_icon.png"
           "$IM_CMD" "$ICON" -resize 192x192! "$RES/mipmap-xxxhdpi/dd_compressor_icon.png"
+          sed -i -e 's/@mipmap\/ic_launcher_round/@mipmap\/dd_compressor_icon/g' -e 's/@mipmap\/ic_launcher/@mipmap\/dd_compressor_icon/g' android/app/src/main/AndroidManifest.xml
 
-          sed -i \
-            -e 's/@mipmap\/ic_launcher_round/@mipmap\/dd_compressor_icon/g' \
-            -e 's/@mipmap\/ic_launcher/@mipmap\/dd_compressor_icon/g' \
-            android/app/src/main/AndroidManifest.xml
-
-          grep -E 'android:(icon|roundIcon)=' android/app/src/main/AndroidManifest.xml
-          test -f "$RES/mipmap-mdpi/dd_compressor_icon.png"
-          test -f "$RES/mipmap-xxxhdpi/dd_compressor_icon.png"
-
-      - name: 📢 Configure AdMob
-        shell: bash
-        env:
-          ADMOB_APP_ID: ${{ secrets.ADMOB_APP_ID }}
-          ADMOB_BANNER_AD_UNIT_ID: ${{ secrets.ADMOB_BANNER_AD_UNIT_ID }}
-          ADMOB_INTERSTITIAL_AD_UNIT_ID: ${{ secrets.ADMOB_INTERSTITIAL_AD_UNIT_ID }}
-        run: |
-          set -euo pipefail
-          mkdir -p android/app/src/main/res/values
-          python3 - <<'PY'
-          from pathlib import Path
-          import os
-          p=Path('android/app/src/main/res/values/strings.xml'); s=p.read_text()
-          if 'name="admob_app_id"' not in s: s=s.replace('</resources>', f'    <string name="admob_app_id">{os.environ["ADMOB_APP_ID"]}</string>\\n</resources>')
-          p.write_text(s)
-          m=Path('android/app/src/main/AndroidManifest.xml'); s=m.read_text()
-          marker='    <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="@string/admob_app_id" />\\n'
-          if 'com.google.android.gms.ads.APPLICATION_ID' not in s: s=s.replace('</application>', marker+'</application>')
-          m.write_text(s)
-          PY
-          sed -i "s|__ADMOB_APP_ID__|$ADMOB_APP_ID|g; s|__ADMOB_BANNER_AD_UNIT_ID__|$ADMOB_BANNER_AD_UNIT_ID|g; s|__ADMOB_INTERSTITIAL_AD_UNIT_ID__|$ADMOB_INTERSTITIAL_AD_UNIT_ID|g" www/js/admob.js
-
-      - name: 🔄 Sync Capacitor and register native plugins
+      - name: 🔄 Sync Capacitor
         shell: bash
         run: |
           set -euo pipefail
           npx cap sync android
-
-          echo "Registered Capacitor plugins:"
           cat android/app/src/main/assets/capacitor.plugins.json
           grep -q 'Filesystem' android/app/src/main/assets/capacitor.plugins.json
           grep -q 'Share' android/app/src/main/assets/capacitor.plugins.json
 
-      - name: 🔍 Validate Android project
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f android/gradlew
-          test -f android/build.gradle
-          test -f android/settings.gradle
-          test -d android/app
-
-      - name: 🧪 Check Java and Gradle
-        shell: bash
-        run: |
-          set -euo pipefail
-          java -version
-          cd android
-          chmod +x gradlew
-          ./gradlew --version
-
-      - name: 📏 Report native payload size
+      - name: 📏 Report native web payload size
         shell: bash
         run: |
           set -euo pipefail
@@ -203,21 +139,14 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace --warning-mode all
 
-      - name: ✅ Verify APK
+      - name: 📏 Enforce APK size target
         shell: bash
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -f "$APK"
-          ls -lh "$APK"
-
-      - name: 📏 Enforce final APK size target
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="android/app/build/outputs/apk/debug/app-debug.apk"
           SIZE=$(stat -c%s "$APK")
-          awk "BEGIN {printf \"Final debug APK size: %.2f MB\\n\", $SIZE/1024/1024}"
+          awk "BEGIN {printf \"Final APK size: %.2f MB\\n\", $SIZE/1024/1024}"
           if [ "$SIZE" -ge $((25*1024*1024)) ]; then echo "ERROR: final APK is not below 25 MB" >&2; exit 1; fi
 
       - name: 📦 Upload APK
