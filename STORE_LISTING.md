@@ -72,16 +72,16 @@ Every store in this list scrutinizes permissions against what the app actually d
 
 ### Google Play
 - Requires an Android App Bundle (`.aab`) as of current policy — use the signed AAB from the release build, not the APK, for the Play Console upload.
-- `compileSdk`/`targetSdk` are set to 36 (Android 16) in this build, matching Play's current requirement (in effect since August 31, 2026) — see `README.md` "If the Android build fails" if a future Play policy bumps this further.
+- `compileSdk`/`targetSdk` are set to 36 (Android 16) in this build, matching Play's current requirement (in effect since August 31, 2026) — see `Blueprint.md` "If the Android build fails" if a future Play policy bumps this further.
 - New developer accounts require a short closed-testing period with a minimum tester count before Play allows a production release — factor this into your timeline.
 
 ### Amazon Appstore
 - Accepts a signed APK directly (no AAB requirement) — use the release `.apk` artifact.
-- Runs its own app scan partly independent of Google Play services availability — since this app's ads depend on Google Play services being present, note in your submission that ads gracefully do not appear on devices without Play services (the banner/App Open ad simply never loads, per the "never a placeholder" behavior in `README.md` "Ad strategy") rather than crashing.
+- Runs its own app scan partly independent of Google Play services availability — since this app's ads depend on Google Play services being present, note in your submission that ads gracefully do not appear on devices without Play services (the banner/App Open ad simply never loads, per the "never a placeholder" behavior in `Blueprint.md` "Ad strategy") rather than crashing.
 
 ### Samsung Galaxy Store
 - Also accepts a signed APK. Samsung's review specifically checks that the app functions correctly on Samsung's own device/One UI skin — since this app is a standard WebView-based Tauri app with no Samsung-specific APIs involved, no special handling should be needed, but test on a real Samsung device (or Samsung's remote test lab) before submitting if possible.
-- Samsung independently reviews ad placement for intrusiveness — the "no interstitial/rewarded/video, banner + one closeable app-open ad" policy in this codebase (see `README.md` "Ad strategy") is deliberately on the conservative end specifically to clear this kind of review comfortably.
+- Samsung independently reviews ad placement for intrusiveness — the "no interstitial/rewarded/video, banner + one closeable app-open ad" policy in this codebase (see `Blueprint.md` "Ad strategy") is deliberately on the conservative end specifically to clear this kind of review comfortably.
 
 ### Xiaomi (GetApps) / Vivo App Store / Oppo App Market
 - All three accept signed APKs and run comparatively strict manual review, especially around permissions and ad behavior — the minimal permission set and no-interstitial ad policy in this codebase were chosen with exactly this in mind.
@@ -93,10 +93,10 @@ Every store in this list scrutinizes permissions against what the app actually d
 ## Common rejection reasons this build already accounts for
 
 - **"Privacy policy doesn't match actual data collection"** — `PRIVACY.md` was rewritten specifically to accurately describe the AdMob data flow rather than leave a stale "we collect nothing" claim once ads were added (see `PRIVACY.md`'s "The Android app is free and shows ads" section).
-- **"Ad implementation is disruptive"** — no interstitial/rewarded/video anywhere; see "Ad strategy" in `README.md`.
+- **"Ad implementation is disruptive"** — no interstitial/rewarded/video anywhere; see "Ad strategy" in `Blueprint.md`.
 - **"Missing ad consent mechanism"** — UMP consent flow + a persistent "Ad privacy choices" menu entry are both implemented, not just the first-launch prompt.
 - **"Unjustified permissions"** — only two permissions, both directly tied to a visible feature (ads), no storage permission needed at all.
-- **"App icon contains illegible text/clutter"** — replaced; see `README.md` "App icon".
+- **"App icon contains illegible text/clutter"** — replaced; see `Blueprint.md` "App icon".
 - **"Broken/placeholder ad space"** — structurally impossible in this build; the banner container has zero height until a real ad loads (see "Ad strategy").
 
 None of this guarantees approval — store policies and reviewers vary — but each addresses a specific, common, named rejection reason rather than being a generic best-effort claim.
