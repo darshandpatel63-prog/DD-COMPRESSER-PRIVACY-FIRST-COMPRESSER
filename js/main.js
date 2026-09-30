@@ -8,8 +8,10 @@ import { createFileCard, setBusy, setProgress, showError, showResult, showToast 
 import { initMenu } from './menu.js';
 import { isNativeApp } from './capacitor-bridge.js';
 import { ANDROID_APP_DOWNLOAD_URL } from './app-config.js';
+import { initializeAds, showBanner, recordCompletedCompression } from './admob.js';
 
 initMenu();
+if (isNativeApp()) initializeAds().then((ready) => { if (ready) showBanner(); });
 
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -118,6 +120,7 @@ async function runCompression(state) {
   } finally {
     state.busy = false;
     updateCompressAllState();
+    if (state.blob) await recordCompletedCompression();
   }
 }
 
