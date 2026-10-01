@@ -45,8 +45,14 @@ public final class ImageCompression {
         // opaque raster images, WebP keeps sharp UI/text edges cleaner than
         // JPEG while still giving a strong size reduction.
         boolean sourceJpeg = lower.endsWith(".jpg") || lower.endsWith(".jpeg");
-        Bitmap.CompressFormat format = (Build.VERSION.SDK_INT >= 30 && (alpha || !sourceJpeg))
-                ? Bitmap.CompressFormat.WEBP_LOSSY : Bitmap.CompressFormat.JPEG;
+        Bitmap.CompressFormat format;
+        if (sourceJpeg) {
+            format = Bitmap.CompressFormat.JPEG;
+        } else if (Build.VERSION.SDK_INT >= 30) {
+            format = Bitmap.CompressFormat.WEBP_LOSSY;
+        } else {
+            format = Bitmap.CompressFormat.WEBP;
+        }
         String ext = format == Bitmap.CompressFormat.JPEG ? "jpg" : "webp";
 
         List<Double> scales = new ArrayList<>();
