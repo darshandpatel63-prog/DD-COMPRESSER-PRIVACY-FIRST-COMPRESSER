@@ -1,85 +1,68 @@
 import { isNativeApp } from './capacitor-bridge.js';
 import { ANDROID_APP_DOWNLOAD_URL } from './app-config.js';
 
-const HOW_PANEL = `
-  <h4>What happens when you compress a file</h4>
-  <p>Your selected file is processed on your own phone or computer. The core compressor does not send the file to a DD Compressor compression server.</p>
-  <p>1. Choose a file.<br>2. Set a target.<br>3. Compress locally.<br>4. Review and save the result.</p>
-  <h4>Why it's private</h4>
-  <p>The core workflow is designed around local processing. Turn off Wi-Fi and mobile data and the core compression engines can still work after the app has loaded.</p>
-  <h4>Why results can vary</h4>
-  <p>Some files are already highly compressed. In those cases the app may keep the original rather than pretend that an unsafe reduction is a success.</p>`;
-
-function initTheme() {
-  const root = document.documentElement;
-  const button = document.getElementById('themeBtn');
-  if (!button) return;
-
-  const saved = localStorage.getItem('dd-compressor-theme');
-  const preferred = window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-  root.dataset.theme = saved || preferred;
-
-  const syncButton = () => {
-    const light = root.dataset.theme === 'light';
-    button.textContent = light ? '☾' : '☀';
-    button.setAttribute('aria-pressed', String(light));
-    button.title = light ? 'Switch to dark theme' : 'Switch to light theme';
-    button.setAttribute('aria-label', button.title);
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = light ? '#f4f7fc' : '#080b14';
-  };
-
-  button.addEventListener('click', () => {
-    root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
-    localStorage.setItem('dd-compressor-theme', root.dataset.theme);
-    syncButton();
-  });
-  syncButton();
-}
+// Kept deliberately simple and non-technical — this is a public-facing
+// explanation, not documentation. The real technical writeup (algorithms,
+// libraries, specific engines) lives in Blueprint.md in the source repository
+// for anyone who wants it; this panel is for someone who just wants to
+// know, in plain terms, what happens to their file.
+const PANELS = {
+  how: `
+    <h4>What happens when you compress a file</h4>
+    <p>Your file is shrunk right here, on your own phone or computer. It never gets sent to the internet, to us, or to anyone else.</p>
+    <p>1. You choose a file.<br>2. This app makes it smaller, using tools already built into your device.<br>3. You get the smaller file back — that's it.</p>
+    <h4>Why it's private</h4>
+    <p>There's no server behind this app. No upload happens because there's nothing for a file to be uploaded to. You could turn off your Wi-Fi and mobile data entirely, and compression would still work.</p>
+    <h4>Why results can vary</h4>
+    <p>Some files are already about as small as they can get. When that happens, this app tells you honestly instead of pretending it shrank something that didn't need it.</p>`,
+  privacy: `
+    <h4>The short version</h4>
+    <p>Your files never leave your device. There's no upload, no server, no account, and no tracking of any kind.</p>
+    <p>The Android app only ever asks for permission to save your compressed file where you choose — nothing else.</p>
+    <p>The full Privacy Policy is in the app and linked from the website footer.</p>`,
+  terms: `
+    <h4>The short version</h4>
+    <p>This app is free to use. You keep all rights to your own files — this app doesn't claim any ownership of what you compress.</p>
+    <p>Please don't use it to process illegal content, or to attack or disrupt other systems.</p>
+    <p>The full Terms of Service are in the app and linked from the website footer.</p>`,
+  disclaimer: `
+    <h4>The short version</h4>
+    <p>This app is provided free, with no warranty. Always keep your original file until you've checked the compressed result and you're happy with it — especially for anything irreplaceable.</p>
+    <p>A "target size" is a goal this app works toward, not a guarantee — some files can't shrink that much without looking noticeably worse, and this app will tell you honestly rather than fake a result.</p>
+    <p>The full Disclaimer is in the app and linked from the website footer.</p>`,
+};
 
 export function initMenu() {
-  initTheme();
-
   const menuBtn = document.getElementById('menuBtn');
   const overlay = document.getElementById('menuOverlay');
   const closeBtn = document.getElementById('menuCloseBtn');
   const body = document.getElementById('menuPanelBody');
   const getAppLink = document.getElementById('menuGetAppLink');
-
   if (!menuBtn || !overlay) return;
 
-  if (getAppLink) {
-    getAppLink.href = ANDROID_APP_DOWNLOAD_URL;
-    if (isNativeApp()) getAppLink.hidden = true;
-  }
+  getAppLink.href = ANDROID_APP_DOWNLOAD_URL;
+  if (isNativeApp()) getAppLink.style.display = 'none'; // no point offering the app to someone already in it
 
   function open() {
     overlay.hidden = false;
     menuBtn.setAttribute('aria-expanded', 'true');
   }
-
   function close() {
     overlay.hidden = true;
     menuBtn.setAttribute('aria-expanded', 'false');
-    if (body) {
-      body.hidden = true;
-      body.innerHTML = '';
-    }
+    body.hidden = true;
+    body.innerHTML = '';
   }
 
   menuBtn.addEventListener('click', open);
-  closeBtn?.addEventListener('click', close);
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) close();
-  });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !overlay.hidden) close();
-  });
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) close(); });
 
-  overlay.querySelectorAll('[data-panel]').forEach((button) => {
-    button.addEventListener('click', () => {
-      if (!body) return;
-      body.innerHTML = HOW_PANEL;
+  overlay.querySelectorAll('[data-panel]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.panel;
+      body.innerHTML = PANELS[key] || '';
       body.hidden = false;
       body.scrollIntoView({ block: 'nearest' });
     });
