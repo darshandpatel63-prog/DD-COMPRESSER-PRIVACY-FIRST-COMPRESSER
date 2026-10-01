@@ -1,58 +1,115 @@
 # Privacy Policy — DD Compressor
 
-**Last updated:** September 2026
+**Last updated:** 1 October 2026
 
-DD Compressor ("the app", "this site") is built around one rule: **your files never leave your device.** This document explains exactly what that means in practice, so you don't have to take the slogan on faith.
+**Developer:** D D Patel  
+**Organization / Project:** D.D. Tech Labs  
+**Developer contact:** hello.ddtechlabshub@gmail.com
 
-## What this app does with your files
+DD Compressor is designed as a privacy-first file compression tool. Its core compression work is performed locally on the user's device rather than by uploading selected files to a D.D. Tech Labs server.
 
-When you add a photo, video, audio file, or PDF to compress:
+## 1. What happens to your files
 
-- It is read directly into your device's memory by your browser or the app.
-- It is processed entirely there — using your device's own processor, not a server.
-- The result is handed back to you as a normal download or a saved file.
-- Nothing about the file's content, name, size, or any other detail is sent anywhere.
+When you select an image, video, audio file, PDF, or other supported file:
 
-There is no upload step anywhere in this app's code, because there is no server for a file to be uploaded to. This isn't a policy promise on top of the software — it's an architectural fact you (or anyone) can verify by inspecting the source code, which is public.
+- The selected file is read by the app/browser on your device.
+- Compression is performed locally on the device.
+- The resulting file is returned to you for saving or sharing.
+- DD Compressor does not intentionally upload the selected file or its contents to a D.D. Tech Labs server for compression.
+- Temporary file data may exist in device/browser memory or local storage while an operation is in progress.
 
-## Advertising and consent
+You remain responsible for keeping independent backups of important original files.
 
-The current store-first Android build is ad-free and does not include the AdMob SDK. A later monetized Android build may include Google AdMob. When that monetized build is enabled, and where Google's User Messaging Platform requires consent, the app presents the applicable consent flow before requesting ads. AdMob network traffic is separate from local file compression; selected files remain on-device.
+## 2. Accounts and personal information
 
-## What this app does NOT do
+The core DD Compressor experience does not require an account, password, or user profile.
 
-- It does not upload your files to any server, cloud storage, or third party.
-- The Android app uses Google AdMob for advertising. The compression engine does not send your selected files or their contents to AdMob.
-- It does not require you to create an account or sign in.
-- It does not read your files for any purpose other than compressing the exact one you chose, at the exact moment you asked it to.
-- It does not share, sell, or otherwise transmit anything about you or your files, because it has no mechanism to do so.
+D.D. Tech Labs does not operate a server-side account system for the core compressor.
 
-## Permissions (Android app)
+## 3. Storage and downloads
 
-The installed Android app may request the following, and only for the stated reason:
+When you save or download a compressed result, the file is handed to the browser or Android operating system. Storage after that point is controlled by your device, browser, and operating system.
 
-- **Storage / file saving** — to save your compressed file where you choose (e.g. your Downloads folder), using Android's standard file-saving system. This is used only at the moment you tap "Download" or "Save," for the file you just compressed.
-- **Internet** — required by the Android ad SDK to load ads. Compression itself remains local and can continue without internet; ads simply cannot load while offline. You can verify this yourself: with your device's Wi-Fi and mobile data both off, every compression feature still works.
+DD Compressor does not maintain server-side storage for your compression files.
 
-No permission is used to read files you haven't explicitly chosen to compress, and no permission is used to send anything off your device.
+## 4. Network access
 
-## Data and advertising SDKs
+Core compression is designed to run locally. A particular Android release may use network access for separately enabled third-party services.
 
-The app itself does not maintain an account, server-side file storage, or an analytics database. The monetized Android build includes Google AdMob/Google Mobile Ads. The current store-first build does not include that SDK. When present, the third-party SDK can process advertising-related information (for example, advertising/device identifiers, diagnostics, and ad interaction or measurement data) according to Google's services and the user's consent/device settings. This data flow is separate from the compression engine: the contents, names, and bytes of files selected for compression are not sent to AdMob.
+Network access for such services does not mean that your selected compression files are uploaded to a D.D. Tech Labs compression server.
 
-## Third-party components
+## 5. Advertising
 
-This app includes some open-source software components (an image/video/audio engine and a PDF library) that run entirely on your device alongside this app's own code. They do not introduce any additional data collection — they are libraries, not services, and none of them make network requests. See `THIRD_PARTY_LICENSES.md` in the source repository for the full list and their individual licenses.
+The current store-first Android build is intended to be ad-free and does not include the Google AdMob SDK.
 
-## Children's privacy
+If a future Android release enables Google AdMob or another advertising service, that release may process advertising-related information such as advertising/device identifiers, diagnostics, ad delivery or measurement data, and ad interaction information, subject to the applicable service documentation, device settings, region, and consent requirements.
 
-This app does not knowingly collect information from anyone, of any age, because it does not collect information at all.
+If consent is legally required for an enabled advertising service, the applicable consent flow will be used before requesting ads where required.
 
-## Changes to this policy
+Advertising-related third-party processing is separate from the local compression engine. Selected file contents are not intentionally sent to an advertising provider by the compression engine.
 
-If this policy ever changes, the updated version will be published at the same location, with a new "Last updated" date at the top. Given the app's design (no server, no accounts, no data collection), changes here would only ever be to clarify wording, not to introduce data collection that the app's architecture doesn't support.
+## 6. Analytics and tracking
 
-## Contact
+The core DD Compressor implementation is designed without a D.D. Tech Labs-operated analytics database.
 
-Questions about this policy can be raised via the project's GitHub page:
-https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER
+If a future release introduces analytics, tracking, accounts, server processing, or another material data-processing service, this Privacy Policy will be updated to describe that change.
+
+## 7. Third-party software
+
+DD Compressor may include open-source local processing libraries, including media and PDF processing components. These components run as part of the application rather than as a D.D. Tech Labs file-upload service.
+
+Third-party components may have their own licenses and privacy practices. Relevant open-source licenses are provided in the project's source repository.
+
+## 8. Sharing and sale
+
+D.D. Tech Labs:
+
+- does not sell your compression files;
+- does not intentionally share selected file contents with advertisers;
+- does not operate server-side storage for your compression files; and
+- does not intentionally inspect, publish, rent, or sell the contents of files you select for compression.
+
+Third-party services, if enabled in a future release, may process their own permitted information according to their applicable documentation and settings.
+
+## 9. Retention and deletion
+
+D.D. Tech Labs does not maintain a server-side retention period for selected compression files because the core compression process is local.
+
+Temporary local data is controlled by the device, browser, or app. Users can remove locally saved output through the normal controls of their device or operating system.
+
+If a future feature introduces server-side storage, its retention and deletion rules will be disclosed in an updated policy.
+
+## 10. Security
+
+Local processing reduces unnecessary transmission of file contents, but no device, browser, software, storage system, or network can be guaranteed completely secure.
+
+Keep your device and software updated and maintain backups of important files.
+
+## 11. Children's privacy
+
+DD Compressor is a general-purpose utility. The core service is not designed to collect personal information from children.
+
+## 12. User responsibility
+
+You must have the legal right to process every file you select. You are responsible for complying with applicable copyright, privacy, confidentiality, licensing, and other laws.
+
+## 13. Changes to this Privacy Policy
+
+This policy may be updated when the application, third-party services, data practices, or applicable requirements change.
+
+The **Last updated** date at the top identifies the current revision.
+
+## 14. Developer information and contact
+
+**Developer:** D D Patel  
+**Organization / Project:** D.D. Tech Labs  
+**Contact email:** hello.ddtechlabshub@gmail.com  
+**Base:** Gujarat, India  
+**Portfolio:** https://darshandpatel63-prog.github.io/Code-by-D-D-Patel/
+
+For privacy questions, data-handling questions, or concerns about DD Compressor, contact the developer at the email address above.
+
+---
+
+DD Compressor · D.D. Tech Labs  
+This policy describes the application's intended data practices and is not individualized legal advice.
