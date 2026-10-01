@@ -12,6 +12,8 @@ import androidx.core.content.FileProvider;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
     private static final int PICK = 501;
@@ -141,7 +143,7 @@ public class MainActivity extends Activity {
 
     private void addUri(Uri uri) {
         for (Item i : items) if (i.uri.equals(uri)) return;
-        getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); } catch (Exception ignored) {}
         String name = FileUtils.displayName(this, uri);
         long size = FileUtils.size(this, uri);
         String mime = FileUtils.mime(this, uri, name);
