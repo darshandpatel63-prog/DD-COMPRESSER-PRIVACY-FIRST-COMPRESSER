@@ -17,9 +17,24 @@ function initAndroidPresentation(){
   const panel=document.getElementById('app'), mount=document.getElementById('androidCompressorMount');
   if(panel && mount) mount.appendChild(panel);
   const input=document.getElementById('fileInput');
-  document.getElementById('androidSelectBtn')?.addEventListener('click',()=>{input.value='';input.accept='';input.click();});
+  input?.addEventListener('click',()=>{ input.value=''; input.accept=''; });
+  if(input) input.removeAttribute('capture');
 }
 initAndroidPresentation();
+window.addEventListener('unhandledrejection', (event) => {
+  if (!isNativeApp()) return;
+  const message = event.reason?.message || String(event.reason || 'Unknown error');
+  console.error('DD Compressor unhandled rejection:', event.reason);
+  showToast('Compression error: ' + message, 'danger');
+});
+window.addEventListener('error', (event) => {
+  if (!isNativeApp()) return;
+  if (event.error || event.message) {
+    const message = event.error?.message || event.message || 'Unknown runtime error';
+    console.error('DD Compressor runtime error:', event.error || event.message);
+    showToast('App error: ' + message, 'danger');
+  }
+});
 initMenu();
 if (isNativeApp()) initializeAds().then((ready) => { if (ready) showBanner(); });
 
