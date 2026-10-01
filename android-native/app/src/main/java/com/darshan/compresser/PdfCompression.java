@@ -38,7 +38,7 @@ public final class PdfCompression {
                     for (PDPage page : doc.getPages()) {
                         PDResources resources = page.getResources();
                         if (resources == null) continue;
-                        for (org.apache.pdfbox.cos.COSName name : resources.getXObjectNames()) {
+                        for (com.tom_roush.pdfbox.cos.COSName name : resources.getXObjectNames()) {
                             try {
                                 PDXObject object = resources.getXObject(name);
                                 if (!(object instanceof PDImageXObject)) continue;
