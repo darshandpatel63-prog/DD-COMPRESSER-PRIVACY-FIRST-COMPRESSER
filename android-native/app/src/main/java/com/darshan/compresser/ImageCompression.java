@@ -41,7 +41,11 @@ public final class ImageCompression {
         if (bitmap == null) throw new IOException("This image could not be decoded.");
 
         boolean alpha = bitmap.hasAlpha();
-        Bitmap.CompressFormat format = (Build.VERSION.SDK_INT >= 30 && alpha)
+        // Preserve photographic JPEGs as JPEG. For PNG/BMP/WebP and other
+        // opaque raster images, WebP keeps sharp UI/text edges cleaner than
+        // JPEG while still giving a strong size reduction.
+        boolean sourceJpeg = lower.endsWith(".jpg") || lower.endsWith(".jpeg");
+        Bitmap.CompressFormat format = (Build.VERSION.SDK_INT >= 30 && (alpha || !sourceJpeg))
                 ? Bitmap.CompressFormat.WEBP_LOSSY : Bitmap.CompressFormat.JPEG;
         String ext = format == Bitmap.CompressFormat.JPEG ? "jpg" : "webp";
 
