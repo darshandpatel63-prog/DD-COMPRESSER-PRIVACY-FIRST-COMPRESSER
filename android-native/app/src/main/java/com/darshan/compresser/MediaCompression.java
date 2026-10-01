@@ -53,7 +53,9 @@ public final class MediaCompression {
         } catch (Exception e) {
             callback.failed(new Exception("Could not read media metadata: " + e.getMessage(), e));
             return;
-        } finally { retriever.release(); }
+        } finally {
+            try { retriever.release(); } catch (Exception ignored) {}
+        }
 
         long initialVideoBps = Math.max(160_000L, (long) (((targetBytes * 8.0 * 0.90) / (durationUs / 1_000_000.0)) - (video ? 96_000 : 0)));
         runPass(context, uri, video, targetBytes, originalBytes, durationUs, width, height, initialVideoBps, 0, callback);
@@ -72,6 +74,7 @@ public final class MediaCompression {
             if (outputHeight > srcH) outputHeight = srcH;
         }
 
+        final int finalOutputHeight = outputHeight;
         File out;
         try { out = FileUtils.newTemp(context, "media_", video ? ".mp4" : ".m4a"); }
         catch (Exception e) { callback.failed(e); return; }
@@ -112,7 +115,7 @@ public final class MediaCompression {
                         callback.done(null, originalBytes, originalBytes, video ? "mp4" : "m4a", "Re-encoding would make this file larger, so the original was kept.");
                     } else {
                         String detail = video
-                                ? (outputHeight < srcH ? outputHeight + "p • " + Math.round(videoBps / 1000.0) + " kbps video" : Math.round(videoBps / 1000.0) + " kbps video")
+                                ? (finalOutputHeight < srcH ? finalOutputHeight + "p • " + Math.round(videoBps / 1000.0) + " kbps video" : Math.round(videoBps / 1000.0) + " kbps video")
                                 : Math.round(audioBps / 1000.0) + " kbps AAC";
                         callback.done(out, originalBytes, size, video ? "mp4" : "m4a", detail);
                     }
