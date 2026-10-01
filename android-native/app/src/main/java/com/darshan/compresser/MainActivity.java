@@ -217,10 +217,16 @@ public class MainActivity extends Activity {
     private void handleIncoming(Intent intent) {
         if(intent==null) return;
         String action=intent.getAction();
-        if(Intent.ACTION_SEND.equals(action) && intent.getParcelableExtra(Intent.EXTRA_STREAM)!=null) {
-            Uri u=intent.getParcelableExtra(Intent.EXTRA_STREAM); if(u!=null) addUri(u);
-        } else if(Intent.ACTION_SEND_MULTIPLE.equals(action) && intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)!=null) {
-            for(Uri u:intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)) addUri(u);
+        if(Intent.ACTION_SEND.equals(action)) {
+            Parcelable parcelable = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (parcelable instanceof Uri) addUri((Uri) parcelable);
+        } else if(Intent.ACTION_SEND_MULTIPLE.equals(action)) {
+            ArrayList<? extends Parcelable> sharedItems = intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (sharedItems != null) {
+                for (Parcelable parcelable : sharedItems) {
+                    if (parcelable instanceof Uri) addUri((Uri) parcelable);
+                }
+            }
         }
     }
 
