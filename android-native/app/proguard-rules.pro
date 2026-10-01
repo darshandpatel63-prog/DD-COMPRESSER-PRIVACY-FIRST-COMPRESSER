@@ -1,6 +1,3 @@
-# Keep PDFBox service/resource discovery intact.
--keep class com.tom_roush.pdfbox.** { *; }
--keep class com.tom_roush.fontbox.** { *; }
--keep class androidx.media3.** { *; }
+# Library-provided R8 rules are used for Media3 and PdfBox-Android.
 -dontwarn org.bouncycastle.**
 -dontwarn org.apache.fontbox.**
