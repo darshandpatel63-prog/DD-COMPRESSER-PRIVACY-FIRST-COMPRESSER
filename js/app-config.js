@@ -5,5 +5,5 @@
 // and every "Get the app" link across the site updates automatically.
 // ============================================================================
 
-export const ANDROID_APP_DOWNLOAD_URL = 'https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/releases/download/v1.0/DD-Compressor-v1.0.apk';
+export const ANDROID_APP_DOWNLOAD_URL = 'https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/releases/download/v1.0.0/DD-Compressor-v1.0.0.apk';
 
