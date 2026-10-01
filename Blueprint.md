@@ -1,16 +1,17 @@
 # DD Compressor — Project Blueprint
 
 ## Purpose
-DD Compressor is a privacy-first, client-side file compressor. User-selected files are processed locally in the browser/app; the repository contains the web application, local compression engines, PWA assets, legal documents, and a manually triggered Android APK workflow.
+DD Compressor is a privacy-first, client-side file compressor. User-selected files are processed locally in the browser/app. The repository contains the web app/PWA, local compression engines, legal pages, and a manually triggered Android APK workflow.
 
 ## Runtime architecture
-- `index.html` — application entry point.
-- `css/styles.css` — complete web UI styling.
-- `js/main.js` — application orchestration and compression flow.
-- `js/ui.js` — file cards, progress, results, and notifications.
-- `js/menu.js` — menu and informational panels.
-- `js/utils.js` — shared utilities, local asset loading, downloads, media limits.
+- `index.html` — lightweight app shell and workspace UI.
+- `css/styles.css` — self-contained responsive design system; no UI framework.
+- `js/main.js` — file selection, compression orchestration, results and downloads.
+- `js/ui.js` — file cards, progress, results and notifications.
+- `js/menu.js` — app menu and lightweight theme switcher.
+- `js/utils.js` — shared utilities, downloads and media limits.
 - `js/app-config.js` — Android release download URL.
+- `js/capacitor-bridge.js` — native save/share bridge for the Android build.
 - `js/compressors/image.js` — image compression.
 - `js/compressors/video.js` — video compression through local FFmpeg WASM.
 - `js/compressors/audio.js` — audio compression through local FFmpeg WASM.
@@ -21,52 +22,65 @@ DD Compressor is a privacy-first, client-side file compressor. User-selected fil
 - `vendor/ffmpeg/` — local FFmpeg runtime/core files.
 - `vendor/pdf-lib/` — local pdf-lib runtime.
 - `vendor/fonts/` — locally bundled Inter fonts.
-- `assets/` — application icons used by the page/PWA.
+- `assets/` — application icons and static assets.
+- `legal/` — in-app HTML legal pages and shared legal-page CSS.
 - `manifest.webmanifest`, `robots.txt`, `sitemap.xml` — PWA/SEO/deployment metadata.
-- `.github/workflows/build-apk.yml` — manual Android APK build workflow; keep it because it has an operational purpose.
+- `.github/workflows/build-apk.yml` — manual Android APK build workflow.
+
+## UI/UX direction
+The public app UI uses a lightweight, card-based design inspired by the information hierarchy of modern design-intelligence sites such as UUPM: a strong hero, compact stat cards, pill controls, modular cards, dark/light mode, clear section hierarchy and responsive mobile behavior. It is an original DD Compressor design and does not depend on UUPM assets or code.
+
+The Android/web experience is intentionally kept dependency-light:
+- No UI framework.
+- No external icon/font CDN.
+- Fonts are bundled locally.
+- Existing compression engines stay local.
+- Legal pages use one shared local stylesheet.
+- Theme state is stored locally in the browser/app.
+
+## Legal documents
+The app must not expose source `.md` documents as its legal UI.
+- `legal/privacy.html` — in-app Privacy Policy.
+- `legal/terms.html` — in-app Terms of Service.
+- `legal/disclaimer.html` — in-app Disclaimer.
+- `legal/licenses.html` — in-app third-party license summary.
+- `PRIVACY.md`, `TERMS.md`, `DISCLAIMER.md`, and `THIRD_PARTY_LICENSES.md` remain source/documentation records; they are not linked as user-facing app pages.
+- Official hosted Privacy Policy: `https://dd-tech-labs-zsrw.vercel.app/products/dd-compressor/privacy.html`.
 
 ## Important project principles
-1. Do not upload user files to a server.
+1. Do not upload user files to a server for core compression.
 2. Keep compression engines local where the current architecture requires them.
 3. Do not remove a dependency merely because it is not imported directly; verify runtime references first.
-4. Do not remove legal/license files that are referenced by the app or required for redistribution.
+4. Do not remove legal/license files that are required for source redistribution.
 5. Keep the Android workflow because it builds the APK on demand.
 6. Keep `.nojekyll` for GitHub Pages compatibility.
 7. Keep `.gitignore` for repository hygiene.
+8. Prefer plain HTML/CSS/JS and local assets over new npm dependencies.
 
-## Documentation
-- `PRIVACY.md` — privacy policy referenced by the in-app menu.
-- `TERMS.md` — terms referenced by the in-app menu.
-- `DISCLAIMER.md` — disclaimer referenced by the in-app menu.
-- `THIRD_PARTY_LICENSES.md` — third-party license record referenced by privacy/footer material.
-- `LICENSE` — project license.
-- `STORE_LISTING.md` — app-store submission material; retained because it has a practical release purpose.
-- This `Blueprint.md` is the technical project map and replaces the obsolete README as the primary repository blueprint.
-
-## Deliberately removed as unused/obsolete
-- `README.md` — described a Tauri/web/src-tauri structure that is not present in the repository.
-- `package.json` — described Tauri commands/dependencies, while the actual APK workflow creates its own Capacitor project dynamically and does not use this package file.
-- `vendor/ffmpeg/core/.keep` — redundant because the directory already contains the required FFmpeg core files.
-
-## Android monetization architecture
-- `js/admob.js` contains the native-only AdMob control layer.
-- The web/PWA build remains functional without AdMob.
-- The first/store-first Android build keeps AdMob fully disabled and does not install the AdMob plugin.
-- A later monetized Android build installs the AdMob plugin only when `ads_enabled=true` and injects AdMob application/ad-unit IDs from GitHub Actions Secrets; IDs are not committed to the repository.
-- UMP consent is requested before ads where required.
-- One native adaptive banner is shown at the bottom and the WebView reserves bottom space so the Download button is not covered.
-- One interstitial is attempted only after 20 completed compression jobs; it is never shown while compression is running.
-- The current Capacitor AdMob JS API manages one banner position at a time. Simultaneous top + bottom banners or true inline native ads inside each WebView result card require a custom native Android view/plugin. The current build deliberately does not overlay a second ad over the app content.
-
-## Store release architecture
-- Capacitor 8 Android targets SDK 36; Play publishing uses AAB, while Indus and other stores can accept signed APK/AAB/APKS formats.
-- Release signing credentials must stay in GitHub Actions Secrets; never commit a keystore.
+## Android architecture
+- Capacitor 8 Android is generated by the manual workflow.
+- Filesystem and Share are included so compressed output can be saved and shared through Android-native capabilities.
+- The first/store-first build keeps AdMob disabled and does not install the AdMob plugin.
+- A later monetized build can enable AdMob only through workflow input and GitHub Actions Secrets.
+- Release signing credentials stay in GitHub Actions Secrets; never commit a keystore.
 
 ## Size budget
 - Requested hard target: final APK strictly below 25 MB.
-- The workflow reports the native web payload and fails the final APK build if the generated APK reaches 25 MB or more.
-- FFmpeg WASM is the dominant size constraint. Current FFmpeg WebAssembly cores are tens of MB before APK compression, so the <25 MB requirement must be measured on the actual release artifact rather than promised in advance.
-- If the release artifact exceeds 25 MB, do not delete required FFmpeg files. The next options are a smaller purpose-built native/media engine or on-demand feature delivery.
+- The workflow reports the native web payload and fails the final APK build if the signed APK reaches 25 MB or more.
+- FFmpeg WebAssembly is the dominant size constraint. The app UI itself is kept dependency-free and lightweight; do not add large UI libraries, icon packs, remote fonts, or unnecessary runtime packages.
+- If the release artifact exceeds the target, measure the actual APK first and optimize the media engine/delivery architecture rather than deleting required legal or application files.
+
+## Store/review considerations
+The app should present itself as a real local utility rather than a generic website wrapper:
+- local compression engines;
+- target-size controls and multi-file queue;
+- on-device result comparison;
+- native Android save/share bridge;
+- offline-first core workflow;
+- direct in-app legal pages;
+- responsive app-style UI with dark/light theme.
+
+These are real application functions and should remain functional in the Android build.
 
 ## Cleanup rule for future changes
 Before deleting any file, search the complete repository for imports, script/style references, asset paths, workflow references, legal references, and deployment references. Delete only when no real use remains.
