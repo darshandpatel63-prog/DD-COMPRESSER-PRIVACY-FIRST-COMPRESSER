@@ -99,7 +99,7 @@ jobs:
         run: |
           set -euo pipefail
           UNSIGNED="android-native/app/build/outputs/apk/release/app-release-unsigned.apk"
-          SIGNED="android-native/app/build/outputs/apk/release/DD-Compressor-v${VERSION_NAME}.apk"
+          SIGNED="android-native/app/build/outputs/apk/release/app-release.apk"
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
           test -x "$APKSIGNER"
           "$APKSIGNER" sign --ks android-native/release.keystore --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" --out "$SIGNED" "$UNSIGNED"
@@ -111,7 +111,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="android-native/app/build/outputs/apk/release/DD-Compressor-v${VERSION_NAME}.apk"
+          APK="android-native/app/build/outputs/apk/release/app-release.apk"
           SIZE=$(stat -c%s "$APK")
           awk 'BEGIN {printf "Final native APK size: %.2f MB\\n", '"$SIZE"'/1024/1024}'
           if [ "$SIZE" -ge $((25*1024*1024)) ]; then echo "ERROR: final native APK is not below 25 MB." >&2; exit 1; fi
@@ -120,7 +120,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: DD-Compressor-Native-Android-APK
-          path: android-native/app/build/outputs/apk/release/DD-Compressor-v${{ inputs.version_name }}.apk
+          path: android-native/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -134,7 +134,7 @@ jobs:
           TAG="v${VERSION_NAME}"
           APK="android-native/app/build/outputs/apk/release/DD-Compressor-v${VERSION_NAME}.apk"
           if gh release view "$TAG" >/dev/null 2>&1; then echo "Release $TAG already exists. Refusing to overwrite it." >&2; exit 1; fi
-          gh release create "$TAG" "$APK#DD-Compressor-v${VERSION_NAME}.apk" --title "DD Compressor v${VERSION_NAME}" --generate-notes --latest
+          gh release create "$TAG" "$APK#DD-Compressor-release.apk" --title "DD Compressor v${VERSION_NAME}" --generate-notes --latest
 
       - name: 🧹 Remove signing material
         if: always()
