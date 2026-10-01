@@ -1,199 +1,155 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#080b14">
-<title>DD Compressor — Private, local file compression</title>
-<meta name="description" content="Compress images, video, audio and PDFs locally on your device. No file upload required.">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
-<link rel="stylesheet" href="./css/styles.css">
-<link rel="icon" type="image/png" sizes="512x512" href="./assets/dd-compressor-icon-512.png">
-<link rel="apple-touch-icon" href="./assets/dd-compressor-icon-512.png">
-<link rel="manifest" href="./manifest.webmanifest">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#14161a" />
+<title>DD Compressor — compress files without sending them anywhere</title>
+<meta name="description" content="A privacy-first file compressor that runs entirely in your browser. Images, video, audio, and PDFs are re-encoded on your device — nothing is ever uploaded." />
+
+<!--
+  This policy is the actual enforcement of the privacy promise below,
+  not just a claim in prose. 'self' + blob: is everything the app is
+  allowed to touch; there is no origin here a file could be sent to.
+  (frame-ancestors / report-uri are intentionally omitted: the CSP
+  spec doesn't honor them from a <meta> tag, only from a real HTTP
+  header, and GitHub Pages doesn't let us set one — see README.)
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; font-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';" />
+
+<link rel="stylesheet" href="./css/styles.css" />
+<link rel="icon" type="image/png" sizes="512x512" href="./assets/dd-compressor-icon-512.png" />
+<link rel="apple-touch-icon" href="./assets/dd-compressor-icon-512.png" />
+<link rel="manifest" href="./manifest.webmanifest" />
 </head>
 <body data-admob-test="false">
-<div class="app-shell">
+
+<div class="wrap">
   <header class="site-header">
-    <a class="brand" href="./" aria-label="DD Compressor home">
-      <span class="brand-mark">DD</span>
-      <span>Compressor</span>
-    </a>
-    <nav class="header-links" aria-label="Primary navigation">
+    <a class="brand" href="./">DD Compressor<span class="dot">.</span></a>
+    <nav class="header-links">
       <a href="#formats">Formats</a>
       <a href="./legal/privacy.html">Privacy</a>
-      <button type="button" id="themeBtn" class="icon-btn" aria-label="Toggle theme" title="Toggle theme">◐</button>
-      <button type="button" id="menuBtn" class="icon-btn menu-trigger" aria-label="Open menu" aria-expanded="false">☰</button>
-    </nav>
-  </header>
-
-  <div class="eyebrow"><span class="eyebrow-dot"></span> LOCAL PROCESSING <span>•</span> NO FILE UPLOADS</div>
-
-  <section class="hero">
-    <div class="hero-copy">
-      <p class="kicker">PRIVATE FILE TOOLS</p>
-      <h1>Compress files.<br><span>Keep them yours.</span></h1>
-      <p class="hero-lede">Images, video, audio and PDFs are processed on your device. No cloud queue, no account, no upload step.</p>
-      <div class="hero-actions">
-        <a class="hero-link" href="#app">Start compressing <span>↓</span></a>
-        <a class="hero-link muted" href="./legal/privacy.html">Read privacy policy</a>
-      </div>
-    </div>
-    <div class="hero-orb" aria-hidden="true">
-      <div class="orb-grid"></div>
-      <div class="orb-ring ring-a"></div>
-      <div class="orb-ring ring-b"></div>
-      <div class="orb-core">LOCAL<br>ONLY</div>
-    </div>
-  </section>
-
-  <section class="stats" aria-label="Product facts">
-    <article class="stat-card">
-      <span class="stat-value">5</span>
-      <span class="stat-label">File groups</span>
-    </article>
-    <article class="stat-card">
-      <span class="stat-value">0</span>
-      <span class="stat-label">Required uploads</span>
-    </article>
-    <article class="stat-card">
-      <span class="stat-value">∞</span>
-      <span class="stat-label">No account needed</span>
-    </article>
-    <article class="stat-card accent-card">
-      <span class="stat-value">OFF</span>
-      <span class="stat-label">Cloud processing</span>
-    </article>
-  </section>
-
-  <div id="menuOverlay" class="menu-overlay" hidden>
-    <aside class="menu-panel" role="dialog" aria-label="App menu" aria-modal="true">
-      <div class="menu-panel-head">
-        <div><strong>DD Compressor</strong><small>Privacy-first file tool</small></div>
-        <button type="button" id="menuCloseBtn" class="icon-btn" aria-label="Close menu">×</button>
-      </div>
-      <button type="button" class="menu-item" data-panel="how">How this app works</button>
-      <a class="menu-item" href="./legal/privacy.html">Privacy Policy <span>↗</span></a>
-      <a class="menu-item" href="./legal/terms.html">Terms of Service <span>↗</span></a>
-      <a class="menu-item" href="./legal/disclaimer.html">Disclaimer <span>↗</span></a>
-      <a class="menu-item" href="./legal/licenses.html">Third-party licenses <span>↗</span></a>
-      <a class="menu-item" id="menuGetAppLink" href="#" target="_blank" rel="noopener">Get the Android app <span>↗</span></a>
-      <a class="menu-item" href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">View source on GitHub <span>↗</span></a>
-      <div id="menuPanelBody" class="menu-panel-body" hidden></div>
-    </aside>
-  </div>
-
-  <main id="app">
-    <section class="compressor-card">
-      <div class="section-head">
-        <div>
-          <p class="section-kicker">WORKSPACE</p>
-          <h2>Drop files, set a goal, compress.</h2>
-        </div>
-        <span class="status-badge"><i></i> On-device</span>
-      </div>
-
-      <label class="dropzone" id="dropZone" for="fileInput" tabindex="0" role="button" aria-label="Add files to compress">
-        <div class="drop-icon" aria-hidden="true">↑</div>
-        <h3>Drop files here or tap to choose</h3>
-        <p>Images · Video · Audio · PDF · Other files</p>
-        <input type="file" id="fileInput" multiple>
-      </label>
-
-      <div class="control-bar">
-        <div class="target-control">
-          <label for="targetSize">Target</label>
-          <input type="number" id="targetSize" min="1" step="1" value="500" inputmode="decimal">
-          <select id="targetUnit" aria-label="Target size unit">
-            <option value="KB" selected>KB</option>
-            <option value="MB">MB</option>
-            <option value="GB">GB</option>
-          </select>
-        </div>
-
-        <div class="chip-row" id="presetRow" aria-label="Quick target presets">
-          <button type="button" class="chip" data-kb="200">Web · 200 KB</button>
-          <button type="button" class="chip" data-kb="1024">Email · 1 MB</button>
-          <button type="button" class="chip" data-kb="16384">Chat · 16 MB</button>
-        </div>
-
-        <div class="field-controls">
-          <button type="button" class="btn btn-ghost btn-sm" id="clearAllBtn">Clear</button>
-          <button type="button" class="btn btn-primary btn-sm" id="compressAllBtn" disabled>Compress all</button>
-        </div>
-      </div>
-
-      <div class="file-list" id="fileList" aria-live="polite"></div>
-    </section>
-
-    <section class="feature-grid" aria-label="Why use DD Compressor">
-      <article class="feature-card">
-        <span class="feature-icon">01</span>
-        <h3>Private by architecture</h3>
-        <p>Your selected file is processed locally instead of being sent to a compression server.</p>
-      </article>
-      <article class="feature-card">
-        <span class="feature-icon">02</span>
-        <h3>Designed for offline use</h3>
-        <p>The core compression engines are bundled locally, so the core workflow does not depend on a cloud job queue.</p>
-      </article>
-      <article class="feature-card">
-        <span class="feature-icon">03</span>
-        <h3>Honest results</h3>
-        <p>Target size is a goal, not a fake guarantee. Already-compressed files can be left unchanged when further compression is unsafe.</p>
-      </article>
-    </section>
-
-    <section class="info-section" id="how">
-      <div class="section-head compact">
-        <div><p class="section-kicker">HOW IT WORKS</p><h2>Six seconds or six minutes — the flow stays simple.</h2></div>
-      </div>
-      <ol class="steps">
-        <li><span>01</span><div><h3>Choose</h3><p>Select one or many files from your device.</p></div></li>
-        <li><span>02</span><div><h3>Set a target</h3><p>Use KB, MB or GB presets to define what you are aiming for.</p></div></li>
-        <li><span>03</span><div><h3>Process locally</h3><p>Images, media and PDFs are handled by the local engines in this app.</p></div></li>
-        <li><span>04</span><div><h3>Review</h3><p>See the original and output sizes before you save.</p></div></li>
-      </ol>
-    </section>
-
-    <section class="info-section" id="formats">
-      <div class="section-head compact">
-        <div><p class="section-kicker">SUPPORTED</p><h2>What you can compress</h2></div>
-      </div>
-      <div class="format-grid">
-        <article><strong>Images</strong><span>JPG · PNG · WebP · GIF · BMP</span><small>Canvas / OffscreenCanvas</small></article>
-        <article><strong>Video</strong><span>MP4 · MOV · WebM · AVI · MKV</span><small>Local FFmpeg WebAssembly</small></article>
-        <article><strong>Audio</strong><span>MP3 · WAV · M4A · AAC · OGG · FLAC</span><small>Local FFmpeg WebAssembly</small></article>
-        <article><strong>PDF</strong><span>PDF</span><small>Local pdf-lib processing</small></article>
-        <article><strong>Other</strong><span>Text · Code · JSON · Unknown</span><small>Browser CompressionStream</small></article>
-      </div>
-    </section>
-
-    <section class="privacy-callout" id="privacy">
-      <div class="privacy-icon">✓</div>
-      <div>
-        <p class="section-kicker">PRIVACY BOUNDARY</p>
-        <h2>Your file stays inside the app workflow.</h2>
-        <p>DD Compressor does not need a server-side compression endpoint. The app is designed so file processing happens on the device you are using.</p>
-        <a href="./legal/privacy.html">Open full Privacy Policy →</a>
-      </div>
-    </section>
-  </main>
-
-  <footer class="site-footer">
-    <div><strong>DD Compressor</strong><span>Privacy-first local file compression.</span></div>
-    <nav aria-label="Legal">
-      <a href="./legal/privacy.html">Privacy</a>
-      <a href="./legal/terms.html">Terms</a>
-      <a href="./legal/disclaimer.html">Disclaimer</a>
-      <a href="./legal/licenses.html">Licenses</a>
       <a href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">Source</a>
     </nav>
+    <button type="button" id="menuBtn" class="menu-btn" aria-label="Open menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+  </header>
+
+  <div id="menuOverlay" class="menu-overlay" hidden>
+    <div class="menu-panel" role="dialog" aria-label="App menu" aria-modal="true">
+      <div class="menu-panel-head">
+        <span>DD Compressor</span>
+        <button type="button" id="menuCloseBtn" class="btn-icon" aria-label="Close menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <button type="button" class="menu-item" data-panel="how">How this app works</button>
+      <a class="menu-item" href="./legal/privacy.html">Privacy Policy</a>
+      <a class="menu-item" href="./legal/terms.html">Terms of Service</a>
+      <a class="menu-item" href="./legal/disclaimer.html">Disclaimer</a>
+      <a class="menu-item" href="./legal/licenses.html">Third-party Licenses</a>
+      <a class="menu-item" id="menuGetAppLink" href="#" target="_blank" rel="noopener">Get the Android app</a>
+      <a class="menu-item" href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">View source on GitHub</a>
+      <div id="menuPanelBody" class="menu-panel-body" hidden></div>
+    </div>
+  </div>
+
+  <section class="hero">
+    <h1>Compress files without sending them anywhere.</h1>
+    <p>Images, video, audio, and PDFs are re-encoded right here, in this tab, using your browser's own engine. The bytes never touch a network — there's no server for them to go to.</p>
+    <span class="privacy-pill"><span class="led" aria-hidden="true"></span> Nothing you drop below is ever uploaded</span>
+  </section>
+
+  <main class="panel" id="app">
+    <label class="dropzone" id="dropZone" for="fileInput" tabindex="0" role="button" aria-label="Add files to compress">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <path d="M12 15V4M12 4l-4 4M12 4l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2>Drop files here, or tap to choose</h2>
+      <p>Images · Video · Audio · PDF · any other file</p>
+      <input type="file" id="fileInput" multiple />
+    </label>
+
+    <div class="panel-controls">
+      <div class="field">
+        <label for="targetSize">Target size</label>
+        <input type="number" id="targetSize" min="1" step="1" value="500" inputmode="decimal" />
+        <select id="targetUnit" aria-label="Target size unit">
+          <option value="KB" selected>KB</option>
+          <option value="MB">MB</option>
+          <option value="GB">GB</option>
+        </select>
+      </div>
+      <div class="chip-row" id="presetRow" aria-label="Quick target presets">
+        <button type="button" class="chip" data-kb="200">Web · 200 KB</button>
+        <button type="button" class="chip" data-kb="1024">Email · 1 MB</button>
+        <button type="button" class="chip" data-kb="16384">Chat · 16 MB</button>
+      </div>
+      <div class="field-controls">
+        <button type="button" class="btn btn-ghost btn-sm" id="clearAllBtn">Clear all</button>
+        <button type="button" class="btn btn-primary btn-sm" id="compressAllBtn" disabled>Compress all</button>
+      </div>
+    </div>
+
+    <div class="file-list" id="fileList" aria-live="polite"></div>
+  </main>
+
+  <section class="info" id="how">
+    <h2>How it actually works</h2>
+    <p class="lede">Four steps, all of them local. There's no fifth step where anything leaves your device.</p>
+    <ol class="steps">
+      <li><span class="num">1</span><div><h3>Add a file</h3><p>Dropped or picked files are read straight into memory by your browser. DD Compressor never sees a URL to upload to, because it doesn't have one.</p></div></li>
+      <li><span class="num">2</span><div><h3>Set a target size</h3><p>Pick a goal in KB, MB, or GB. It's a target the engine works toward, not a guarantee — an already-compressed file has less room to shrink, and DD Compressor will tell you so rather than fake a result.</p></div></li>
+      <li><span class="num">3</span><div><h3>Compress on your device</h3><p>Images use the Canvas API with an iterative quality-and-dimension search. Video and audio run through a local copy of FFmpeg compiled to WebAssembly. PDFs are re-built by recompressing their embedded images, keeping the text layer intact.</p></div></li>
+      <li><span class="num">4</span><div><h3>Download the result</h3><p>The output is handed to you as a normal browser download. It existed only in this tab's memory before that.</p></div></li>
+    </ol>
+
+    <div class="boundary" id="privacy">
+      <svg viewBox="0 0 100 100" fill="none" aria-hidden="true">
+        <rect x="8" y="8" width="84" height="84" rx="14" stroke="#2b2f3a" stroke-width="2" stroke-dasharray="5 5"/>
+        <path d="M50 30a17 17 0 1 0 0.01 0" stroke="#e3a24a" stroke-width="2.4" stroke-linecap="round" />
+        <path d="M50 30l-5 6h10z" fill="#e3a24a" />
+        <rect x="42" y="46" width="16" height="20" rx="2.5" stroke="#edeef1" stroke-width="2.2"/>
+        <path d="M46 46v-3a4 4 0 0 1 8 0v3" stroke="#edeef1" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <p><strong>Everything above runs inside this boundary.</strong> No upload endpoint exists in this app's code — not ours, not a CDN's, not an analytics provider's. The Content-Security-Policy on this page (view source, or the note below) is set so the browser itself will refuse any attempt to send data out, even a future bug in this code couldn't create a working upload without that policy also being rewritten.</p>
+    </div>
+  </section>
+
+  <section class="info" id="formats">
+    <h2>What's supported</h2>
+    <p class="lede">Where DD Compressor writes the compression logic itself, versus where it runs a well-established open-source engine locally.</p>
+    <table class="formats">
+      <thead><tr><th>Type</th><th>Reads</th><th>Writes</th><th>Engine</th></tr></thead>
+      <tbody>
+        <tr><td>Image</td><td class="mono">jpg, png, webp, gif, bmp</td><td class="mono">jpg, png, webp</td><td>Our own code — Canvas / OffscreenCanvas</td></tr>
+        <tr><td>Video</td><td class="mono">mp4, mov, webm, avi, mkv</td><td class="mono">mp4, webm</td><td>FFmpeg (WebAssembly), run locally</td></tr>
+        <tr><td>Audio</td><td class="mono">mp3, wav, m4a, aac, ogg, flac</td><td class="mono">mp3, aac, ogg, wav</td><td>FFmpeg (WebAssembly), run locally</td></tr>
+        <tr><td>PDF</td><td class="mono">pdf</td><td class="mono">pdf</td><td>Our own code, on top of pdf-lib</td></tr>
+        <tr><td>Other</td><td class="mono">text, code, JSON, unknown</td><td class="mono">.gz</td><td>Browser-native CompressionStream</td></tr>
+      </tbody>
+    </table>
+    <p class="csp-note">This page's own policy: <code>default-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:</code> — the full policy is in the page's <code>&lt;head&gt;</code> .</p>
+  </section>
+
+  <footer>
+    <span>DD Compressor — privacy-first local file compression.</span>
+    <span class="footer-links"><a href="./legal/privacy.html">Privacy</a><a href="./legal/terms.html">Terms</a><a href="./legal/disclaimer.html">Disclaimer</a><a href="./legal/licenses.html">Licenses</a><a href="https://github.com/darshandpatel63-prog/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER" target="_blank" rel="noopener">View source</a></span>
   </footer>
 </div>
 
 <div id="toast-region" aria-live="assertive"></div>
 
+<!-- Vendored locally on purpose: @ffmpeg/ffmpeg's UMD build resolves its
+     worker chunk (814.ffmpeg.js) relative to wherever THIS script was
+     loaded from. Loading it from a CDN is exactly what produced the
+     "Failed to construct Worker... cannot be accessed from origin" error
+     in the original project — the chunk stayed on the CDN's origin while
+     the page was on GitHub Pages. Same-origin script + same-directory
+     chunk removes the problem at the source instead of masking it. -->
 <script src="./vendor/ffmpeg/ffmpeg.js"></script>
 <script src="./vendor/pdf-lib/pdf-lib.min.js"></script>
 <script type="module" src="./js/main.js"></script>
