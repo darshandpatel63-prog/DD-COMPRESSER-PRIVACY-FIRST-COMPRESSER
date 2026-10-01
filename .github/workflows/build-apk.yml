@@ -39,9 +39,12 @@ jobs:
           set -euo pipefail
           rm -rf www
           mkdir -p www
-          rsync -a --exclude='www' --exclude='.git' --exclude='.github' --exclude='android' --exclude='node_modules' ./ www/
+          rsync -a --exclude='www' --exclude='.git' --exclude='.github' --exclude='android' --exclude='node_modules' --exclude='*.md' --exclude='LICENSE' ./ www/
           test -f www/index.html
           test -f www/assets/dd-compressor-icon-512.png
+          test ! -e www/PRIVACY.md
+          test ! -e www/TERMS.md
+          test ! -e www/DISCLAIMER.md
 
       - name: 📦 Initialize Capacitor project
         shell: bash
