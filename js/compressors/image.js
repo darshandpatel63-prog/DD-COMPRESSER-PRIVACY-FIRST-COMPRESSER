@@ -7,17 +7,20 @@
 import { baseName, extensionForMime } from '../utils.js';
 
 export function compressImage(file, { targetBytes, format }, onProgress) {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
     let worker;
+    const id = 1;
+    // Resolve from this module instead of the document URL. Capacitor's
+    // Android WebView can serve the app from a local scheme; module-relative
+    // resolution remains stable there and in normal browsers.
+    const workerUrl = new URL('../workers/image-worker.js', import.meta.url);
+
     try {
-      worker = new Worker('./js/workers/image-worker.js');
+      worker = new Worker(workerUrl, { type: 'classic' });
     } catch (err) {
-      reject(new Error('Could not start the image worker: ' + err.message));
+      reject(new Error('Could not start the image worker: ' + (err?.message || err)));
       return;
     }
-
-    const id = 1;
-    const workerUrl = new URL('../workers/image-worker.js', import.meta.url);
     worker.onmessage = (e) => {
       const msg = e.data;
       if (msg.id !== id) return;
@@ -54,10 +57,16 @@ export function compressImage(file, { targetBytes, format }, onProgress) {
       reject(new Error('Image worker crashed: ' + (err.message || 'unknown error')));
     };
 
-    const arrayBuffer = await file.arrayBuffer();
-    worker.postMessage(
-      { id, payload: { arrayBuffer, mime: file.type || `image/${file.name.split('.').pop()}`, name: file.name, targetBytes, format, originalBytes: file.size } },
-      [arrayBuffer]
-    );
+    file.arrayBuffer()
+      .then((arrayBuffer) => {
+        worker.postMessage(
+          { id, payload: { arrayBuffer, mime: file.type || `image/${file.name.split('.').pop()}`, name: file.name, targetBytes, format, originalBytes: file.size } },
+          [arrayBuffer]
+        );
+      })
+      .catch((err) => {
+        worker.terminate();
+        reject(new Error('Could not read the selected image: ' + (err?.message || err)));
+      });
   });
 }
