@@ -10,6 +10,16 @@ import { isNativeApp } from './capacitor-bridge.js';
 import { ANDROID_APP_DOWNLOAD_URL } from './app-config.js';
 import { initializeAds, showBanner, recordCompletedCompression } from './admob.js';
 
+function initAndroidPresentation(){
+  if(!isNativeApp()) return;
+  document.body.classList.add('android-native');
+  const shell=document.getElementById('androidApp'); if(shell) shell.hidden=false;
+  const panel=document.getElementById('app'), mount=document.getElementById('androidCompressorMount'); if(panel && mount) mount.appendChild(panel);
+  const input=document.getElementById('fileInput');
+  document.getElementById('androidSelectBtn')?.addEventListener('click',()=>{input.value='';input.accept='';input.click();});
+  document.querySelectorAll('[data-android-category]').forEach(btn=>btn.addEventListener('click',()=>{const accepts={image:'image/*',video:'video/*',audio:'audio/*',pdf:'application/pdf'};input.accept=accepts[btn.dataset.androidCategory]||'';input.value='';input.click();setTimeout(()=>{input.accept='';},1000);}));
+}
+initAndroidPresentation();
 initMenu();
 if (isNativeApp()) initializeAds().then((ready) => { if (ready) showBanner(); });
 
