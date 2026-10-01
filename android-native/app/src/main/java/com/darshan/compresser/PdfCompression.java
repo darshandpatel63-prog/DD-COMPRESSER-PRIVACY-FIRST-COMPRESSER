@@ -23,62 +23,74 @@ public final class PdfCompression {
         if (originalBytes > 0 && originalBytes <= targetBytes) return new ImageResult(null, originalBytes, "Original already meets target.");
         PDFBoxResourceLoader.init(context.getApplicationContext());
 
-        byte[] source;
-        try (InputStream in = context.getContentResolver().openInputStream(uri)) {
-            if (in == null) throw new Exception("Could not open PDF.");
-            source = readAll(in);
-        }
+        File sourceFile = FileUtils.newTemp(context, "pdf_source_", ".pdf");
+        FileUtils.copy(context, uri, sourceFile);
 
         Candidate best = null;
         float[] qualities = {0.92f, 0.86f, 0.80f};
         int[] maxDims = {2600, 2200, 1800};
 
-        for (int pass = 0; pass < qualities.length; pass++) {
-            File trial = FileUtils.newTemp(context, "pdf_trial_", ".pdf");
-            PDDocument doc = PDDocument.load(source);
-            int changed = 0;
-            try {
-                for (PDPage page : doc.getPages()) {
-                    PDResources resources = page.getResources();
-                    if (resources == null) continue;
-                    for (org.apache.pdfbox.cos.COSName name : resources.getXObjectNames()) {
-                        try {
-                            PDXObject object = resources.getXObject(name);
-                            if (!(object instanceof PDImageXObject)) continue;
-                            PDImageXObject image = (PDImageXObject)object;
-                            Bitmap bitmap = image.getImage();
-                            if (bitmap == null || bitmap.getWidth() < 120 || bitmap.getHeight() < 120) { if (bitmap != null) bitmap.recycle(); continue; }
-                            Bitmap working = bitmap;
-                            int max = Math.max(bitmap.getWidth(), bitmap.getHeight());
-                            if (max > maxDims[pass]) {
-                                float scale = maxDims[pass] / (float)max;
-                                working = Bitmap.createScaledBitmap(bitmap, Math.max(96, Math.round(bitmap.getWidth()*scale)), Math.max(96, Math.round(bitmap.getHeight()*scale)), true);
-                            }
-                            if (!working.hasAlpha()) {
-                                PDImageXObject replacement = JPEGFactory.createFromImage(doc, working, qualities[pass]);
-                                if (replacement.getCOSObject().getLength() < image.getCOSObject().getLength()) {
-                                    resources.put(name, replacement);
-                                    changed++;
+        try {
+            for (int pass = 0; pass < qualities.length; pass++) {
+                File trial = FileUtils.newTemp(context, "pdf_trial_", ".pdf");
+                PDDocument doc = PDDocument.load(sourceFile);
+                try {
+                    for (PDPage page : doc.getPages()) {
+                        PDResources resources = page.getResources();
+                        if (resources == null) continue;
+                        for (org.apache.pdfbox.cos.COSName name : resources.getXObjectNames()) {
+                            try {
+                                PDXObject object = resources.getXObject(name);
+                                if (!(object instanceof PDImageXObject)) continue;
+                                PDImageXObject image = (PDImageXObject)object;
+                                Bitmap bitmap = image.getImage();
+                                if (bitmap == null || bitmap.getWidth() < 120 || bitmap.getHeight() < 120) {
+                                    if (bitmap != null) bitmap.recycle();
+                                    continue;
                                 }
+                                Bitmap working = bitmap;
+                                int max = Math.max(bitmap.getWidth(), bitmap.getHeight());
+                                if (max > maxDims[pass]) {
+                                    float scale = maxDims[pass] / (float)max;
+                                    working = Bitmap.createScaledBitmap(
+                                            bitmap,
+                                            Math.max(96, Math.round(bitmap.getWidth()*scale)),
+                                            Math.max(96, Math.round(bitmap.getHeight()*scale)),
+                                            true);
+                                }
+                                if (!working.hasAlpha()) {
+                                    PDImageXObject replacement = JPEGFactory.createFromImage(doc, working, qualities[pass]);
+                                    if (replacement.getCOSObject().getLength() < image.getCOSObject().getLength()) {
+                                        resources.put(name, replacement);
+                                    }
+                                }
+                                if (working != bitmap) working.recycle();
+                                bitmap.recycle();
+                            } catch (Exception ignored) {
+                                // Unsupported/complex image stays untouched; never rasterize the page.
                             }
-                            if (working != bitmap) working.recycle();
-                            bitmap.recycle();
-                        } catch (Exception ignored) {
-                            // Unsupported/complex image stays untouched; never rasterize the page.
                         }
                     }
+                    doc.save(trial);
+                } finally {
+                    doc.close();
                 }
-                doc.save(trial);
-            } finally { doc.close(); }
 
-            long size = trial.length();
-            if (size < originalBytes) {
-                if (best == null || size < best.size) {
-                    if (best != null) best.file.delete();
-                    best = new Candidate(trial, size, qualities[pass], maxDims[pass]);
-                } else trial.delete();
-                if (size <= targetBytes) break;
-            } else trial.delete();
+                long size = trial.length();
+                if (size < originalBytes) {
+                    if (best == null || size < best.size) {
+                        if (best != null) best.file.delete();
+                        best = new Candidate(trial, size, qualities[pass], maxDims[pass]);
+                    } else {
+                        trial.delete();
+                    }
+                    if (size <= targetBytes) break;
+                } else {
+                    trial.delete();
+                }
+            }
+        } finally {
+            sourceFile.delete();
         }
 
         if (best == null) return new ImageResult(null, originalBytes, "No embedded raster images could be reduced safely; text, vector graphics and forms were preserved.");
