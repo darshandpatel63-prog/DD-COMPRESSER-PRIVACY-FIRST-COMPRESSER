@@ -6,7 +6,7 @@ import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 
-import androidx.media3.common.Effects;
+import androidx.media3.transformer.Effects;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.effect.Presentation;
@@ -90,7 +90,7 @@ public final class MediaCompression {
             encoderBuilder.setRequestedVideoEncoderSettings(
                     new VideoEncoderSettings.Builder()
                             .setBitrate((int)Math.min(Integer.MAX_VALUE, videoBps))
-                            .setIFrameIntervalSeconds(1.0f)
+                             .setiFrameIntervalSeconds(1.0f)
                             .build());
         }
         encoderBuilder.setRequestedAudioEncoderSettings(
