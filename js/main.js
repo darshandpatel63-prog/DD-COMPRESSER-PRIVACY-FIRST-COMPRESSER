@@ -14,10 +14,10 @@ function initAndroidPresentation(){
   if(!isNativeApp()) return;
   document.body.classList.add('android-native');
   const shell=document.getElementById('androidApp'); if(shell) shell.hidden=false;
-  const panel=document.getElementById('app'), mount=document.getElementById('androidCompressorMount'); if(panel && mount) mount.appendChild(panel);
+  const panel=document.getElementById('app'), mount=document.getElementById('androidCompressorMount');
+  if(panel && mount) mount.appendChild(panel);
   const input=document.getElementById('fileInput');
   document.getElementById('androidSelectBtn')?.addEventListener('click',()=>{input.value='';input.accept='';input.click();});
-  document.querySelectorAll('[data-android-category]').forEach(btn=>btn.addEventListener('click',()=>{const accepts={image:'image/*',video:'video/*',audio:'audio/*',pdf:'application/pdf'};input.accept=accepts[btn.dataset.androidCategory]||'';input.value='';input.click();setTimeout(()=>{input.accept='';},1000);}));
 }
 initAndroidPresentation();
 initMenu();
@@ -77,9 +77,10 @@ function addFiles(fileListArg) {
     }
   }
   updateCompressAllState();
+  updateAndroidSelectionSummary();
 }
 
-function updateCompressAllState() {
+function updateAndroidSelectionSummary() {
   compressAllBtn.disabled = files.size === 0 || [...files.values()].some((f) => f.busy);
 }
 
