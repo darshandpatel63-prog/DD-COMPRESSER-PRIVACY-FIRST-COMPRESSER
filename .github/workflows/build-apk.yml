@@ -48,13 +48,13 @@ jobs:
           cp assets/dd-compressor-icon-512.png android-native/app/src/main/res/drawable/dd_compressor_icon.png
           test -s android-native/app/src/main/res/drawable/dd_compressor_icon.png
 
-      - name: 🧱 Download Gradle 9.5
+      - name: 🧱 Download Gradle 9.5.0
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://services.gradle.org/distributions/gradle-9.5-bin.zip -o "$RUNNER_TEMP/gradle.zip"
+          curl -fsSL https://services.gradle.org/distributions/gradle-9.5.0-bin.zip -o "$RUNNER_TEMP/gradle.zip"
           unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP/gradle"
-          echo "$RUNNER_TEMP/gradle/gradle-9.5/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/gradle/gradle-9.5.0/bin" >> "$GITHUB_PATH"
 
       - name: 🔎 Validate native project
         shell: bash
