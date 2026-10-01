@@ -16,11 +16,11 @@ public final class NativeCompressor {
     public interface Progress { void update(int pct, String message); }
 
     public static MainActivity.NativeResult compress(
-            Context context, Uri uri, String name, String mime, long originalBytes, long targetBytes, Progress progress) throws Exception {
+            Context context, Uri uri, String name, String mime, long originalBytes, long targetBytes, String outputFormat, Progress progress) throws Exception {
 
         String m = mime == null ? "" : mime.toLowerCase();
         if (m.startsWith("image/")) {
-            ImageCompression.Result r = ImageCompression.compress(context, uri, name, originalBytes, targetBytes);
+            ImageCompression.Result r = ImageCompression.compress(context, uri, name, originalBytes, targetBytes, outputFormat);
             if (r.original) {
                 File copy = FileUtils.newTemp(context, "original_", ext(name));
                 FileUtils.copy(context, uri, copy);
