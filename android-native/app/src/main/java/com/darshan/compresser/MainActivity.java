@@ -61,6 +61,8 @@ public class MainActivity extends Activity {
     private boolean loadingAppOpenAd = false;
     private boolean showingFullScreenAd = false;
     private boolean suppressNextBackgroundCount = false;
+    private boolean compressionRunning = false;
+    private final Runnable adFreeExpiryRunnable = this::refreshAdFreeUi;
     private int completedCompressionCountForAds = 0;
     private int completedCompressionResultsForNativeAds = 0;
     private int completedLargeBatchCount = 0;
@@ -81,6 +83,7 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(Color.rgb(16,18,20));
         adFreeUntilMs = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getLong("ad_free_until", 0L);
         completedLargeBatchCount = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getInt("large_batch_count", 0);
+        if (isAdFreeActive()) scheduleAdFreeExpiry();
         buildUi();
         initializeAdConsent();
         handleIncoming(getIntent());
@@ -162,13 +165,21 @@ public class MainActivity extends Activity {
     private void grantAdFreePass(String reason) {
         adFreeUntilMs = Math.max(adFreeUntilMs, System.currentTimeMillis()) + AD_FREE_DURATION_MS;
         getSharedPreferences(AD_PREFS, MODE_PRIVATE).edit().putLong("ad_free_until", adFreeUntilMs).apply();
+        scheduleAdFreeExpiry();
         refreshAdFreeUi();
         toast("30 minutes of Ad-Free Compression unlocked!");
         Log.i("DDCompressorAds", "Ad-free pass granted: " + reason);
     }
 
+    private void scheduleAdFreeExpiry() {
+        main.removeCallbacks(adFreeExpiryRunnable);
+        long remaining = adFreeUntilMs - System.currentTimeMillis();
+        if (remaining > 0) main.postDelayed(adFreeExpiryRunnable, remaining);
+    }
+
     private void refreshAdFreeUi() {
         boolean adFree = isAdFreeActive();
+        if (adFree) scheduleAdFreeExpiry();
         if (adContainer != null) {
             if (adFree) adContainer.setVisibility(View.GONE);
             else if (bannerAdView != null && bannerAdView.getParent() == adContainer) {
@@ -320,11 +331,9 @@ public class MainActivity extends Activity {
     }
 
     private void loadNativeAdAfter(Item item) {
-        if (!adsSdkReady || loadingNativeAd || isAdFreeActive() || isFinishing()) return;
-        loadingNativeAd = true;
+        if (!adsSdkReady || isAdFreeActive() || isFinishing()) return;
         AdLoader loader = new AdLoader.Builder(this, nativeAdUnitId())
                 .forNativeAd(nativeAd -> {
-                    loadingNativeAd = false;
                     if (isFinishing() || isAdFreeActive() || item.card == null) {
                         nativeAd.destroy();
                         return;
@@ -333,7 +342,6 @@ public class MainActivity extends Activity {
                 })
                 .withAdListener(new AdListener() {
                     @Override public void onAdFailedToLoad(LoadAdError error) {
-                        loadingNativeAd = false;
                         Log.w("DDCompressorAds", "Native ad failed: " + error.getMessage());
                     }
                 }).build();
