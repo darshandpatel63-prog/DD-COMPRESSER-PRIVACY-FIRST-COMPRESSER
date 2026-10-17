@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     private boolean loadingNativeAd = false;
     private boolean loadingAppOpenAd = false;
     private boolean showingFullScreenAd = false;
+    private boolean activityResumed = false;
     private boolean suppressNextBackgroundCount = false;
     private boolean compressionRunning = false;
     private final Runnable adFreeExpiryRunnable = this::refreshAdFreeUi;
@@ -96,8 +97,14 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        activityResumed = true;
         refreshAdFreeUi();
         maybeShowAppOpenAd();
+    }
+
+    @Override protected void onPause() {
+        activityResumed = false;
+        super.onPause();
     }
 
     @Override public void onUserLeaveHint() {
@@ -249,7 +256,7 @@ public class MainActivity extends Activity {
     }
 
     private void maybeShowAppOpenAd() {
-        if (!adsSdkReady || isFinishing() || isAdFreeActive() || showingFullScreenAd) return;
+        if (!adsSdkReady || isFinishing() || !activityResumed || isAdFreeActive() || showingFullScreenAd) return;
         int backgroundCount = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getInt("background_count", 0);
         if (backgroundCount < 4) return;
         if (appOpenAd == null) {
