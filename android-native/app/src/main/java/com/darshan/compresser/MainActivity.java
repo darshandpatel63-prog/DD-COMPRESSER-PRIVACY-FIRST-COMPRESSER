@@ -61,6 +61,7 @@ public class MainActivity extends Activity {
     private boolean loadingAppOpenAd = false;
     private boolean showingFullScreenAd = false;
     private boolean activityResumed = false;
+    private boolean adFreeUiWasActive = false;
     private boolean suppressNextBackgroundCount = false;
     private boolean compressionRunning = false;
     private final Runnable adFreeExpiryRunnable = this::refreshAdFreeUi;
@@ -188,9 +189,11 @@ public class MainActivity extends Activity {
         boolean adFree = isAdFreeActive();
         if (adFree) scheduleAdFreeExpiry();
         if (adContainer != null) {
-            if (adFree) adContainer.setVisibility(View.GONE);
-            else if (bannerAdView != null && bannerAdView.getParent() == adContainer) {
-                // Keep the banner hidden until its next successful load callback.
+            if (adFree) {
+                adContainer.setVisibility(View.GONE);
+            } else if (adFreeUiWasActive && bannerAdView != null
+                    && bannerAdView.getParent() == adContainer) {
+                // Reload the banner only when the ad-free pass ends, not on every resume.
                 adContainer.setVisibility(View.GONE);
                 bannerAdView.loadAd(new AdRequest.Builder().build());
             }
@@ -200,6 +203,7 @@ public class MainActivity extends Activity {
                     mainScroll.getPaddingRight(), adFree ? 0 : (bannerAdView != null ? dp(100) : 0));
         }
         for (View view : nativeAdCards) view.setVisibility(adFree ? View.GONE : View.VISIBLE);
+        adFreeUiWasActive = adFree;
         if (!adFree && adsSdkReady && bannerAdView == null) loadBannerAd();
     }
 
@@ -484,6 +488,10 @@ public class MainActivity extends Activity {
                 Log.w("DDCompressorAds", "Banner failed: " + error.getMessage());
                 runOnUiThread(() -> {
                     if (adContainer != null) adContainer.setVisibility(View.GONE);
+                    if (mainScroll != null) {
+                        mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
+                                mainScroll.getPaddingRight(), 0);
+                    }
                 });
             }
         });
