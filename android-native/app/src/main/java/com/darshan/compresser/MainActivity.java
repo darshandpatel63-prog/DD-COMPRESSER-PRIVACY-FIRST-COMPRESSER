@@ -7,9 +7,15 @@ import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.*;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.*;
 import android.widget.*;
 import androidx.core.content.FileProvider;
+
+import com.google.android.gms.ads.*;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+import com.google.android.ump.*;
 
 import java.io.*;
 import java.util.*;
@@ -17,6 +23,18 @@ import java.util.concurrent.ExecutorService;
 
 public class MainActivity extends Activity {
     private static final int PICK = 501;
+    private static final String TEST_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/9214589741";
+    private static final String TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
+    private static final int INTERSTITIAL_INTERVAL = 20;
+
+    private ScrollView mainScroll;
+    private FrameLayout adContainer;
+    private Button adPrivacyButton;
+    private ConsentInformation consentInformation;
+    private AdView bannerAdView;
+    private InterstitialAd interstitialAd;
+    private boolean adsSdkReady = false;
+    private int completedCompressionCountForAds = 0;
 
     private final ArrayList<Item> items = new ArrayList<>();
     private LinearLayout list;
@@ -31,6 +49,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(16,18,20));
         getWindow().setNavigationBarColor(Color.rgb(16,18,20));
         buildUi();
+        initializeAdConsent();
         handleIncoming(getIntent());
     }
 
@@ -39,8 +58,163 @@ public class MainActivity extends Activity {
         handleIncoming(intent);
     }
 
+    @Override protected void onDestroy() {
+        if (bannerAdView != null) {
+            bannerAdView.destroy();
+            bannerAdView = null;
+        }
+        super.onDestroy();
+    }
+
+    private String bannerAdUnitId() {
+        return BuildConfig.ADMOB_TEST_MODE
+                ? TEST_BANNER_AD_UNIT_ID
+                : BuildConfig.ADMOB_BANNER_AD_UNIT_ID;
+    }
+
+    private String interstitialAdUnitId() {
+        return BuildConfig.ADMOB_TEST_MODE
+                ? TEST_INTERSTITIAL_AD_UNIT_ID
+                : BuildConfig.ADMOB_INTERSTITIAL_AD_UNIT_ID;
+    }
+
+    private void initializeAdConsent() {
+        consentInformation = UserMessagingPlatform.getConsentInformation(this);
+        ConsentRequestParameters params = new ConsentRequestParameters.Builder().build();
+        consentInformation.requestConsentInfoUpdate(
+                this,
+                params,
+                () -> UserMessagingPlatform.loadAndShowConsentFormIfRequired(this, formError -> {
+                    if (formError != null) {
+                        Log.w("DDCompressorAds", "Consent form: " + formError.getMessage());
+                    }
+                    updateAdPrivacyButton();
+                    if (consentInformation.canRequestAds()) initializeMobileAdsSdk();
+                }),
+                requestError -> {
+                    Log.w("DDCompressorAds", "Consent info: " + requestError.getMessage());
+                    updateAdPrivacyButton();
+                    if (consentInformation.canRequestAds()) initializeMobileAdsSdk();
+                });
+    }
+
+    private void updateAdPrivacyButton() {
+        runOnUiThread(() -> {
+            if (adPrivacyButton == null || consentInformation == null) return;
+            boolean required = consentInformation.getPrivacyOptionsRequirementStatus()
+                    == ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED;
+            adPrivacyButton.setVisibility(required ? View.VISIBLE : View.GONE);
+        });
+    }
+
+    private void showAdPrivacyOptions() {
+        UserMessagingPlatform.showPrivacyOptionsForm(this, formError -> {
+            if (formError != null) {
+                Log.w("DDCompressorAds", "Privacy options form: " + formError.getMessage());
+            }
+            updateAdPrivacyButton();
+            if (consentInformation != null && consentInformation.canRequestAds()) {
+                initializeMobileAdsSdk();
+            }
+        });
+    }
+
+    private void initializeMobileAdsSdk() {
+        if (adsSdkReady || isFinishing()) return;
+        MobileAds.initialize(this, initializationStatus -> runOnUiThread(() -> {
+            adsSdkReady = true;
+            loadBannerAd();
+            loadInterstitialAd();
+        }));
+    }
+
+    private void loadBannerAd() {
+        if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()
+                || adContainer == null || isFinishing()) return;
+
+        if (bannerAdView != null) {
+            bannerAdView.destroy();
+            bannerAdView = null;
+        }
+
+        int widthDp = (int) (getResources().getDisplayMetrics().widthPixels
+                / getResources().getDisplayMetrics().density);
+        AdSize adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp);
+        AdView view = new AdView(this);
+        bannerAdView = view;
+        view.setAdUnitId(bannerAdUnitId());
+        view.setAdSize(adSize);
+        adContainer.removeAllViews();
+        adContainer.addView(view, new FrameLayout.LayoutParams(
+                -1, adSize.getHeightInPixels(this), Gravity.CENTER));
+        view.setAdListener(new AdListener() {
+            @Override public void onAdLoaded() {
+                runOnUiThread(() -> {
+                    if (isFinishing() || adContainer == null) return;
+                    adContainer.setVisibility(View.VISIBLE);
+                    if (mainScroll != null) {
+                        mainScroll.setPadding(mainScroll.getPaddingLeft(),
+                                mainScroll.getPaddingTop(), mainScroll.getPaddingRight(), dp(100));
+                    }
+                });
+            }
+
+            @Override public void onAdFailedToLoad(LoadAdError error) {
+                Log.w("DDCompressorAds", "Banner failed: " + error.getMessage());
+                runOnUiThread(() -> {
+                    if (adContainer != null) adContainer.setVisibility(View.GONE);
+                });
+            }
+        });
+        view.loadAd(new AdRequest.Builder().build());
+    }
+
+    private void loadInterstitialAd() {
+        if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()
+                || isFinishing() || interstitialAd != null) return;
+
+        InterstitialAd.load(this, interstitialAdUnitId(), new AdRequest.Builder().build(),
+                new InterstitialAdLoadCallback() {
+                    @Override public void onAdLoaded(InterstitialAd ad) {
+                        interstitialAd = ad;
+                    }
+
+                    @Override public void onAdFailedToLoad(LoadAdError error) {
+                        interstitialAd = null;
+                        Log.w("DDCompressorAds", "Interstitial failed: " + error.getMessage());
+                    }
+                });
+    }
+
+    private void recordSuccessfulCompressionForAds() {
+        if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()) return;
+        completedCompressionCountForAds++;
+        if (completedCompressionCountForAds < INTERSTITIAL_INTERVAL) return;
+        completedCompressionCountForAds = 0;
+
+        if (interstitialAd == null) {
+            loadInterstitialAd();
+            return;
+        }
+
+        InterstitialAd adToShow = interstitialAd;
+        interstitialAd = null;
+        adToShow.setFullScreenContentCallback(new FullScreenContentCallback() {
+            @Override public void onAdDismissedFullScreenContent() {
+                loadInterstitialAd();
+            }
+
+            @Override public void onAdFailedToShowFullScreenContent(AdError error) {
+                Log.w("DDCompressorAds", "Interstitial show failed: " + error.getMessage());
+                loadInterstitialAd();
+            }
+        });
+        adToShow.show(MainActivity.this);
+    }
+
     private void buildUi() {
         ScrollView scroll = new ScrollView(this);
+        mainScroll = scroll;
         scroll.setFillViewport(true);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -104,6 +278,11 @@ public class MainActivity extends Activity {
         privacyBtn.setOnClickListener(v -> openUrl("https://dd-tech-labs-hub.vercel.app/products/dd-compressor/privacy.html"));
         info.addView(privacyBtn, margin(0,10,0,0));
 
+        adPrivacyButton = button("Ad privacy options", Color.rgb(32,37,42), Color.rgb(235,238,241));
+        adPrivacyButton.setVisibility(View.GONE);
+        adPrivacyButton.setOnClickListener(v -> showAdPrivacyOptions());
+        info.addView(adPrivacyButton, margin(0,7,0,0));
+
         Button hubBtn = button("D.D. Tech Labs Hub", Color.rgb(32,37,42), Color.rgb(235,238,241));
         hubBtn.setOnClickListener(v -> openUrl("https://dd-tech-labs-hub.vercel.app/"));
         info.addView(hubBtn, margin(0,7,0,0));
@@ -112,7 +291,15 @@ public class MainActivity extends Activity {
         TextView footer = text("D.D. Tech Labs  •  DD Compressor", 10, Color.rgb(100,108,116));
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
-        setContentView(scroll);
+
+        FrameLayout screen = new FrameLayout(this);
+        screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        adContainer = new FrameLayout(this);
+        adContainer.setBackgroundColor(Color.rgb(16,18,20));
+        adContainer.setVisibility(View.GONE);
+        FrameLayout.LayoutParams adParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        screen.addView(adContainer, adParams);
+        setContentView(screen);
     }
 
     private void openPicker() {
@@ -252,6 +439,7 @@ public class MainActivity extends Activity {
 
     private void showResult(Item item) {
         if (item.card == null || item.result == null) return;
+        recordSuccessfulCompressionForAds();
         LinearLayout resultRow = row();
         TextView t = text(item.result.originalKept
                 ? "Original kept • " + FileUtils.formatBytes(item.result.output.length())
