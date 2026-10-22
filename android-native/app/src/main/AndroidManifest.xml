@@ -12,7 +12,7 @@
         android:supportsRtl="true">
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="${admobAppId}" />
+            android:value="ca-app-pub-9557757991977213~8750973505" />
         <activity
             android:name=".MainActivity"
             android:screenOrientation="portrait"
