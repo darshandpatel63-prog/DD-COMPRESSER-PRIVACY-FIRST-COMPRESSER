@@ -24,6 +24,7 @@ final class AdsManager {
     private InterstitialAd interstitial;
     private RewardedAd rewarded;
     private long adFreeUntil;
+    private boolean initializationStarted;
 
     private static final String APP_BANNER = "ca-app-pub-9557757991977213/8928348733";
     private static final String APP_INTERSTITIAL = "ca-app-pub-9557757991977213/9510802662";
@@ -57,6 +58,8 @@ final class AdsManager {
     }
 
     private void initialize() {
+        if (initializationStarted) return;
+        initializationStarted = true;
         try {
             MobileAds.initialize(activity, status -> activity.runOnUiThread(() -> {
                 if (activity.isFinishing() || activity.isDestroyed() || isAdFree()) return;

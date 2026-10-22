@@ -265,7 +265,8 @@ public class MainActivity extends Activity {
                 compressButton.setEnabled(true);
                 progress.setVisibility(View.GONE);
                 status.setText("Done. Saved files go directly to Downloads / DD Compressor.");
-                if (adsManager != null) adsManager.showInterstitialAtBatchEnd(done);
+                final int completedCount = done;
+                if (adsManager != null) adsManager.showInterstitialAtBatchEnd(completedCount);
             });
         });
     }
