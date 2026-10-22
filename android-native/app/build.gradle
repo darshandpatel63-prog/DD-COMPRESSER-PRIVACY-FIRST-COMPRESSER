@@ -15,12 +15,11 @@ android {
 
     buildTypes {
         release {
-            manifestPlaceholders = [admobAppId: 'ca-app-pub-9557757991977213~8750973505']
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
-        debug { minifyEnabled false; manifestPlaceholders = [admobAppId: 'ca-app-pub-3940256099942544~3347511713'] }
+        debug { minifyEnabled false }
     }
 
     packaging {
