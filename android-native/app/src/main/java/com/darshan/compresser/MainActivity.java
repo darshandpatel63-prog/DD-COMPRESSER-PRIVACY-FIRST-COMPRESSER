@@ -10,14 +10,6 @@ import android.provider.MediaStore;
 import android.view.*;
 import android.widget.*;
 import androidx.core.content.FileProvider;
-import com.google.android.gms.ads.AdRequest;
-import com.google.android.gms.ads.AdSize;
-import com.google.android.gms.ads.AdView;
-import com.google.android.gms.ads.MobileAds;
-import com.google.android.gms.ads.LoadAdError;
-import com.google.android.gms.ads.interstitial.InterstitialAd;
-import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
-import com.google.android.gms.ads.FullScreenContentCallback;
 
 import java.io.*;
 import java.util.*;
@@ -25,11 +17,6 @@ import java.util.concurrent.ExecutorService;
 
 public class MainActivity extends Activity {
     private static final int PICK = 501;
-    private static final int INTERSTITIAL_INTERVAL = 20;
-    private AdView bannerAdView;
-    private InterstitialAd interstitialAd;
-    private int successfulCompressionCount = 0;
-    private boolean adsReady = false;
 
     private final ArrayList<Item> items = new ArrayList<>();
     private LinearLayout list;
@@ -126,93 +113,7 @@ public class MainActivity extends Activity {
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
         setContentView(scroll);
-        initializeAds();
     }
-
-    private void initializeAds() {
-        try {
-            MobileAds.initialize(this, status -> main.post(() -> {
-                adsReady = true;
-                loadBannerAd();
-                loadInterstitialAd();
-            }));
-        } catch (RuntimeException ignored) {
-            // Ads must never prevent file selection or compression from working.
-        }
-    }
-
-    private void loadBannerAd() {
-        if (!adsReady || isFinishing() || bannerAdView != null) return;
-        try {
-            bannerAdView = new AdView(this);
-            bannerAdView.setAdSize(AdSize.BANNER);
-            bannerAdView.setAdUnitId(BuildConfig.ADMOB_BANNER_AD_UNIT_ID);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.setMargins(0, dp(10), 0, dp(8));
-            View content = findViewById(android.R.id.content);
-            if (content instanceof android.widget.FrameLayout) {
-                android.widget.FrameLayout frame = (android.widget.FrameLayout) content;
-                if (frame.getChildCount() > 0 && frame.getChildAt(0) instanceof ScrollView) {
-                    ScrollView sv = (ScrollView) frame.getChildAt(0);
-                    if (sv.getChildAt(0) instanceof LinearLayout) {
-                        ((LinearLayout) sv.getChildAt(0)).addView(bannerAdView, lp);
-                    }
-                }
-            }
-            bannerAdView.loadAd(new AdRequest.Builder().build());
-        } catch (RuntimeException e) {
-            if (bannerAdView != null) {
-                bannerAdView.destroy();
-                bannerAdView = null;
-            }
-        }
-    }
-
-    private void loadInterstitialAd() {
-        if (!adsReady || isFinishing()) return;
-        try {
-            InterstitialAd.load(this, BuildConfig.ADMOB_INTERSTITIAL_AD_UNIT_ID,
-                    new AdRequest.Builder().build(), new InterstitialAdLoadCallback() {
-                @Override public void onAdLoaded(InterstitialAd ad) {
-                    interstitialAd = ad;
-                }
-                @Override public void onAdFailedToLoad(LoadAdError error) {
-                    interstitialAd = null;
-                }
-            });
-        } catch (RuntimeException ignored) {
-            interstitialAd = null;
-        }
-    }
-
-    private void onCompressionSucceeded() {
-        successfulCompressionCount++;
-        if (successfulCompressionCount < INTERSTITIAL_INTERVAL) return;
-        successfulCompressionCount = 0;
-        if (interstitialAd == null || isFinishing()) {
-            loadInterstitialAd();
-            return;
-        }
-        InterstitialAd ad = interstitialAd;
-        interstitialAd = null;
-        ad.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() { loadInterstitialAd(); }
-            @Override public void onAdFailedToShowFullScreenContent(com.google.android.gms.ads.AdError error) {
-                loadInterstitialAd();
-            }
-        });
-        try { ad.show(this); }
-        catch (RuntimeException ignored) { loadInterstitialAd(); }
-    }
-
-    @Override protected void onDestroy() {
-        if (bannerAdView != null) {
-            bannerAdView.destroy();
-            bannerAdView = null;
-        }
-        super.onDestroy();
-    }
-
 
     private void openPicker() {
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -335,7 +236,7 @@ public class MainActivity extends Activity {
                                 progress.setProgress(Math.min(99, (int)((index-1)*100.0/items.size()+pct/items.size())));
                             }));
                     item.result = result;
-                    main.post(() -> { showResult(item); onCompressionSucceeded(); });
+                    main.post(() -> showResult(item));
                 } catch (Exception e) {
                     main.post(() -> toast("Failed: " + item.name + " — " + e.getMessage()));
                 }
