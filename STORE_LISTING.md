@@ -14,30 +14,26 @@
 > • Review results before saving
 > • Offline-first core compression
 > • Native Android save/share support
-> • First store release: free and ad-free
+> • Advertising-supported Android build; ads and consent options may be shown
 
-The current UI is an app-style local utility, not a remote file-upload interface.
+The current Android app is a native local utility. Compression is performed on-device; advertising and consent SDKs may use network access.
 
 ## Privacy policy URL
 
 Use the hosted HTML Privacy Policy, not a Markdown source file:
 
-https://dd-tech-labs-zsrw.vercel.app/products/dd-compressor/privacy.html
+https://dd-tech-labs-hub.vercel.app/products/dd-compressor/privacy.html
 
-The app also includes local HTML copies under `legal/` so users can open Privacy Policy, Terms, Disclaimer and third-party license information directly from the app without opening a `.md` source document.
+The app also includes local HTML copies under `legal/` so users can open Privacy Policy, Terms, Disclaimer and third-party license information directly from the app.
 
-## First ad-free Android build
+## Monetized Android build
 
-The first store build keeps AdMob disabled and does not install the AdMob plugin.
-
-## Later monetized build
-
-A later build may enable Google AdMob/UMP through the manual workflow and GitHub Actions Secrets. Update the store's data-safety/privacy declarations to match the exact release being submitted.
+The Android build integrates Google AdMob and Google User Messaging Platform (UMP). Update the store's data-safety/privacy declarations to match the exact release being submitted, and verify the hosted privacy policy is published before distribution.
 
 ## Permissions
 
-The current Android build is designed around the narrowest runtime permissions possible. Saving compressed output uses the app's own external-files area through Capacitor Filesystem, and sharing is handled by the Android share sheet. Do not add broad storage/media permissions unless a future feature truly requires them.
+The current Android build uses Internet and network-state permissions for advertising/consent services. File selection uses Android's document picker; saving output uses MediaStore Downloads, and sharing is handled through Android's share sheet. Do not add broad storage/media permissions unless a future feature truly requires them.
 
 ## APK size
 
-The workflow enforces the current project target of a signed APK below 25 MB. FFmpeg WebAssembly is the dominant size constraint; do not inflate the app with unnecessary packages, remote UI libraries or duplicated assets.
+The workflow enforces a signed APK target below 25 MB. The automatic CI workflow builds an unsigned release APK for compilation and size validation only; the manual release workflow signs the APK and creates a GitHub Release when signing secrets are configured.
