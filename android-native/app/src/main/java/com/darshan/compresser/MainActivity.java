@@ -261,11 +261,11 @@ public class MainActivity extends Activity {
                 }
                 main.post(() -> progress.setProgress(index*100/items.size()));
             }
+            final int completedCount = done;
             main.post(() -> {
                 compressButton.setEnabled(true);
                 progress.setVisibility(View.GONE);
                 status.setText("Done. Saved files go directly to Downloads / DD Compressor.");
-                final int completedCount = done;
                 if (adsManager != null) adsManager.showInterstitialAtBatchEnd(completedCount);
             });
         });
