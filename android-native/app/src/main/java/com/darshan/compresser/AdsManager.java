@@ -53,6 +53,11 @@ final class AdsManager {
     }
 
     void start() {
+        // Diagnostic build: disable all ad/consent startup to isolate the launch crash.
+        // Restore the normal startup flow after the crash source is identified.
+        return;
+
+        /*
         if (!onMainThread()) { activity.runOnUiThread(this::start); return; }
         try {
             consent = UserMessagingPlatform.getConsentInformation(activity);
@@ -69,6 +74,7 @@ final class AdsManager {
                 }));
             if (consent.canRequestAds()) initialize();
         } catch (Exception ignored) { }
+        */
     }
 
     private void initialize() {
