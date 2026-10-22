@@ -286,6 +286,7 @@ public class MainActivity extends Activity {
     }
 
     private void showRewardedAdForAdFree() {
+        if (!BuildConfig.ADMOB_ENABLED) return;
         if (isAdFreeActive()) {
             toast("Ad-Free Compression is already active.");
             return;
@@ -396,6 +397,12 @@ public class MainActivity extends Activity {
     }
 
     private void initializeAdConsent() {
+        // Keep Google consent/ad startup out of the launch path until ads are explicitly enabled.
+        // A consent or ad-SDK issue must never block the local compressor UI.
+        if (!BuildConfig.ADMOB_ENABLED) {
+            Log.i("DDCompressorAds", "AdMob is disabled by build configuration; continuing without ads.");
+            return;
+        }
         consentInformation = UserMessagingPlatform.getConsentInformation(this);
         ConsentRequestParameters params = new ConsentRequestParameters.Builder().build();
         consentInformation.requestConsentInfoUpdate(
@@ -425,6 +432,7 @@ public class MainActivity extends Activity {
     }
 
     private void showAdPrivacyOptions() {
+        if (!BuildConfig.ADMOB_ENABLED) return;
         UserMessagingPlatform.showPrivacyOptionsForm(this, formError -> {
             if (formError != null) {
                 Log.w("DDCompressorAds", "Privacy options form: " + formError.getMessage());
@@ -609,6 +617,7 @@ public class MainActivity extends Activity {
         info.addView(text("Each file has its own output format and target size. The native engine keeps the highest practical quality while trying to reach your selected target.", 10.5f, Color.rgb(154,161,168)));
 
         Button adFreeBtn = button("Watch an ad • 30 min Ad-Free", Color.rgb(227,162,74), Color.rgb(42,28,8));
+        adFreeBtn.setVisibility(BuildConfig.ADMOB_ENABLED ? View.VISIBLE : View.GONE);
         adFreeBtn.setOnClickListener(v -> showRewardedAdForAdFree());
         info.addView(adFreeBtn, margin(0,10,0,0));
 
