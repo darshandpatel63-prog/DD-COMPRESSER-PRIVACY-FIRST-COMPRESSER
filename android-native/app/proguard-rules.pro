@@ -3,5 +3,13 @@
 -dontwarn org.apache.fontbox.**
 
 # PdfBox-Android treats JPEG2000/JPX decoding as an optional dependency.
-# The app does not bundle JP2Android, so R8 must not fail on its optional reference.
 -dontwarn com.gemalto.jp2.**
+
+# Keep app classes and Java bridge entry points safe under release shrinking.
+-keep class com.darshan.compresser.** { *; }
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
+# Preserve Google Mobile Ads classes used by the optional ads layer.
+-keep class com.google.android.gms.ads.** { *; }
