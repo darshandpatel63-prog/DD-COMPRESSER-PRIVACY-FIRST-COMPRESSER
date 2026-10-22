@@ -1,17 +1,5 @@
 plugins { id 'com.android.application' }
 
-def admobProperties = new Properties()
-def admobPropertiesFile = rootProject.file("admob.properties")
-if (admobPropertiesFile.exists()) {
-    admobPropertiesFile.withInputStream { admobProperties.load(it) }
-}
-def admobAppId = admobProperties.getProperty("ADMOB_APP_ID", "").trim()
-def admobBannerId = admobProperties.getProperty("ADMOB_BANNER_AD_UNIT_ID", "").trim()
-def admobInterstitialId = admobProperties.getProperty("ADMOB_INTERSTITIAL_AD_UNIT_ID", "").trim()
-if (!admobAppId || !admobBannerId || !admobInterstitialId) {
-    throw new GradleException("Missing live AdMob IDs in android-native/admob.properties")
-}
-
 android {
     namespace 'com.darshan.compresser'
     compileSdk 36
@@ -22,12 +10,7 @@ android {
         targetSdk 36
         versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
         versionName System.getenv('VERSION_NAME') ?: '1.0.0'
-        manifestPlaceholders = [ADMOB_APP_ID: admobAppId]
-        buildConfigField 'String', 'ADMOB_BANNER_AD_UNIT_ID', '"' + admobBannerId + '"'
-        buildConfigField 'String', 'ADMOB_INTERSTITIAL_AD_UNIT_ID', '"' + admobInterstitialId + '"'
     }
-
-    buildFeatures { buildConfig true }
 
     buildTypes {
         release {
@@ -51,5 +34,4 @@ dependencies {
     implementation 'androidx.media3:media3-effect:1.11.1'
     implementation 'androidx.media3:media3-common:1.11.1'
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
-    implementation 'com.google.android.gms:play-services-ads:25.5.0'
 }
