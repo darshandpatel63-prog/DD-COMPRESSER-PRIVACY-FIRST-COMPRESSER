@@ -12,6 +12,7 @@ def admobRewardedId = admobProperties.getProperty("ADMOB_REWARDED_AD_UNIT_ID", "
 def admobRewardedInterstitialId = admobProperties.getProperty("ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID", "ca-app-pub-3940256099942544/5354046379").trim()
 def admobNativeId = admobProperties.getProperty("ADMOB_NATIVE_AD_UNIT_ID", "ca-app-pub-3940256099942544/2247696110").trim()
 def admobAppOpenId = admobProperties.getProperty("ADMOB_APP_OPEN_AD_UNIT_ID", "ca-app-pub-3940256099942544/9257395921").trim()
+def admobEnabled = Boolean.parseBoolean(admobProperties.getProperty("ADMOB_ENABLED", "false").trim())
 def admobTestMode = Boolean.parseBoolean(admobProperties.getProperty("ADMOB_TEST_MODE", "true").trim())
 def effectiveAdMobAppId = admobTestMode ? "ca-app-pub-3940256099942544~3347511713" : admobAppId
 def effectiveBannerId = admobTestMode ? "ca-app-pub-3940256099942544/9214589741" : admobBannerId
@@ -40,6 +41,7 @@ android {
         buildConfigField 'String', 'ADMOB_NATIVE_AD_UNIT_ID', "\"${effectiveNativeId}\""
         buildConfigField 'String', 'ADMOB_APP_OPEN_AD_UNIT_ID', "\"${effectiveAppOpenId}\""
         buildConfigField 'boolean', 'ADMOB_TEST_MODE', "${admobTestMode}"
+        buildConfigField 'boolean', 'ADMOB_ENABLED', "${admobEnabled}"
     }
 
     buildFeatures { buildConfig true }
