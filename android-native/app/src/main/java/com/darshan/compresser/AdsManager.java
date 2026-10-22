@@ -1,10 +1,9 @@
 package com.darshan.compresser;
 
 import android.app.Activity;
+import android.os.Looper;
 import android.view.Gravity;
 import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.graphics.Color;
 import com.google.android.gms.ads.*;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
@@ -41,24 +40,40 @@ final class AdsManager {
         this.onReward = onReward;
     }
 
-    private String unit(String live, String test) { return BuildConfig.DEBUG ? test : live; }
-    boolean isAdFree() { return System.currentTimeMillis() < adFreeUntil; }
+    private boolean onMainThread() {
+        return Looper.myLooper() == Looper.getMainLooper();
+    }
+
+    private String unit(String live, String test) {
+        return BuildConfig.DEBUG ? test : live;
+    }
+
+    boolean isAdFree() {
+        return System.currentTimeMillis() < adFreeUntil;
+    }
 
     void start() {
+        if (!onMainThread()) { activity.runOnUiThread(this::start); return; }
         try {
             consent = UserMessagingPlatform.getConsentInformation(activity);
             ConsentRequestParameters params = new ConsentRequestParameters.Builder().build();
             consent.requestConsentInfoUpdate(activity, params,
-                () -> UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity, error -> {
-                    if (consent.canRequestAds()) initialize();
+                () -> activity.runOnUiThread(() -> {
+                    if (activity.isFinishing() || activity.isDestroyed()) return;
+                    UserMessagingPlatform.loadAndShowConsentFormIfRequired(activity, error -> {
+                        if (consent != null && consent.canRequestAds()) initialize();
+                    });
                 }),
-                error -> { if (consent.canRequestAds()) initialize(); });
+                error -> activity.runOnUiThread(() -> {
+                    if (consent != null && consent.canRequestAds()) initialize();
+                }));
             if (consent.canRequestAds()) initialize();
         } catch (Exception ignored) { }
     }
 
     private void initialize() {
-        if (initializationStarted) return;
+        if (!onMainThread()) { activity.runOnUiThread(this::initialize); return; }
+        if (initializationStarted || activity.isFinishing() || activity.isDestroyed()) return;
         initializationStarted = true;
         try {
             MobileAds.initialize(activity, status -> activity.runOnUiThread(() -> {
@@ -68,10 +83,11 @@ final class AdsManager {
                 loadInterstitial();
                 loadRewarded();
             }));
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) { initializationStarted = false; }
     }
 
     private void loadBanner(boolean top) {
+        if (!onMainThread()) { activity.runOnUiThread(() -> loadBanner(top)); return; }
         try {
             if (isAdFree() || activity.isFinishing() || activity.isDestroyed()) return;
             LinearLayout slot = top ? topSlot : bottomSlot;
@@ -91,17 +107,23 @@ final class AdsManager {
     }
 
     private void loadInterstitial() {
+        if (!onMainThread()) { activity.runOnUiThread(this::loadInterstitial); return; }
         try {
             if (isAdFree() || activity.isFinishing() || activity.isDestroyed()) return;
             InterstitialAd.load(activity, unit(APP_INTERSTITIAL, "ca-app-pub-3940256099942544/1033173712"),
                 new AdRequest.Builder().build(), new InterstitialAdLoadCallback() {
-                    @Override public void onAdLoaded(InterstitialAd ad) { interstitial = ad; }
-                    @Override public void onAdFailedToLoad(LoadAdError error) { interstitial = null; }
+                    @Override public void onAdLoaded(InterstitialAd ad) {
+                        activity.runOnUiThread(() -> interstitial = ad);
+                    }
+                    @Override public void onAdFailedToLoad(LoadAdError error) {
+                        activity.runOnUiThread(() -> interstitial = null);
+                    }
                 });
         } catch (Exception ignored) { interstitial = null; }
     }
 
     void showInterstitialAtBatchEnd(int count) {
+        if (!onMainThread()) { activity.runOnUiThread(() -> showInterstitialAtBatchEnd(count)); return; }
         if (count < 7 || isAdFree() || interstitial == null || activity.isFinishing() || activity.isDestroyed()) return;
         InterstitialAd ad = interstitial;
         interstitial = null;
@@ -113,17 +135,23 @@ final class AdsManager {
     }
 
     private void loadRewarded() {
+        if (!onMainThread()) { activity.runOnUiThread(this::loadRewarded); return; }
         try {
             if (isAdFree() || activity.isFinishing() || activity.isDestroyed()) return;
             RewardedAd.load(activity, unit(APP_REWARDED, "ca-app-pub-3940256099942544/5224354917"),
                 new AdRequest.Builder().build(), new RewardedAdLoadCallback() {
-                    @Override public void onAdLoaded(RewardedAd ad) { rewarded = ad; }
-                    @Override public void onAdFailedToLoad(LoadAdError error) { rewarded = null; }
+                    @Override public void onAdLoaded(RewardedAd ad) {
+                        activity.runOnUiThread(() -> rewarded = ad);
+                    }
+                    @Override public void onAdFailedToLoad(LoadAdError error) {
+                        activity.runOnUiThread(() -> rewarded = null);
+                    }
                 });
         } catch (Exception ignored) { rewarded = null; }
     }
 
     void showRewarded() {
+        if (!onMainThread()) { activity.runOnUiThread(this::showRewarded); return; }
         if (isAdFree()) return;
         if (rewarded == null) { loadRewarded(); return; }
         RewardedAd ad = rewarded;
@@ -144,11 +172,13 @@ final class AdsManager {
     }
 
     private void removeBanners() {
+        if (!onMainThread()) { activity.runOnUiThread(this::removeBanners); return; }
         if (topBanner != null) { topSlot.removeView(topBanner); topBanner.destroy(); topBanner = null; }
         if (bottomBanner != null) { bottomSlot.removeView(bottomBanner); bottomBanner.destroy(); bottomBanner = null; }
     }
 
     void destroy() {
+        if (!onMainThread()) { activity.runOnUiThread(this::destroy); return; }
         removeBanners();
         interstitial = null;
         rewarded = null;
