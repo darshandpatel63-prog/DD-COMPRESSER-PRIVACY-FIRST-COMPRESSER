@@ -23,8 +23,6 @@ import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoa
 import com.google.android.gms.ads.nativead.NativeAd;
 import com.google.android.gms.ads.nativead.NativeAdView;
 import com.google.android.gms.ads.nativead.MediaView;
-import com.google.android.gms.ads.appopen.AppOpenAd;
-import com.google.android.gms.ads.appopen.AppOpenAd.AppOpenAdLoadCallback;
 import com.google.android.ump.*;
 
 import java.io.*;
@@ -38,7 +36,6 @@ public class MainActivity extends Activity {
     private static final String TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
     private static final String TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379";
     private static final String TEST_NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110";
-    private static final String TEST_APP_OPEN_AD_UNIT_ID = "ca-app-pub-3940256099942544/9257395921";
     private static final int INTERSTITIAL_INTERVAL = 15;
     private static final int NATIVE_AD_INTERVAL = 3;
     private static final int LARGE_BATCH_MIN_FILES = 7;
@@ -54,18 +51,14 @@ public class MainActivity extends Activity {
     private InterstitialAd interstitialAd;
     private RewardedAd rewardedAd;
     private RewardedInterstitialAd rewardedInterstitialAd;
-    private AppOpenAd appOpenAd;
     private boolean adsSdkReady = false;
     private boolean adsEnabled = false;
     private final Runnable startAdsRunnable = this::startAdsSafely;
     private boolean loadingRewardedAd = false;
     private boolean loadingRewardedInterstitialAd = false;
     private boolean loadingNativeAd = false;
-    private boolean loadingAppOpenAd = false;
     private boolean showingFullScreenAd = false;
-    private boolean activityResumed = false;
     private boolean adFreeUiWasActive = false;
-    private boolean suppressNextBackgroundCount = false;
     private boolean compressionRunning = false;
     private final Runnable adFreeExpiryRunnable = this::refreshAdFreeUi;
     private int completedCompressionCountForAds = 0;
@@ -84,6 +77,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        DDApp.install(this);
         getWindow().setStatusBarColor(Color.rgb(16,18,20));
         getWindow().setNavigationBarColor(Color.rgb(16,18,20));
         adFreeUntilMs = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getLong("ad_free_until", 0L);
@@ -156,10 +150,8 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        activityResumed = true;
         try {
             refreshAdFreeUi();
-            maybeShowAppOpenAd();
         } catch (Throwable t) {
             disableAdsAfterFailure(t);
         }
@@ -169,24 +161,6 @@ public class MainActivity extends Activity {
         // Normal (non-crash) stop: the startup guard flag must not stay set.
         try { DDApp.markAdsStartup(this, false); } catch (Throwable ignored) {}
         super.onStop();
-    }
-
-    @Override protected void onPause() {
-        activityResumed = false;
-        super.onPause();
-    }
-
-    @Override public void onUserLeaveHint() {
-        super.onUserLeaveHint();
-        if (suppressNextBackgroundCount) {
-            suppressNextBackgroundCount = false;
-            return;
-        }
-        if (!showingFullScreenAd && !isAdFreeActive()) {
-            int count = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getInt("background_count", 0);
-            getSharedPreferences(AD_PREFS, MODE_PRIVATE).edit()
-                    .putInt("background_count", Math.min(4, count + 1)).apply();
-        }
     }
 
     @Override protected void onDestroy() {
@@ -228,11 +202,6 @@ public class MainActivity extends Activity {
     private String nativeAdUnitId() {
         return BuildConfig.ADMOB_TEST_MODE
                 ? TEST_NATIVE_AD_UNIT_ID : BuildConfig.ADMOB_NATIVE_AD_UNIT_ID;
-    }
-
-    private String appOpenAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_APP_OPEN_AD_UNIT_ID : BuildConfig.ADMOB_APP_OPEN_AD_UNIT_ID;
     }
 
     private boolean isAdFreeActive() {
@@ -308,50 +277,6 @@ public class MainActivity extends Activity {
                         Log.w("DDCompressorAds", "Rewarded interstitial failed: " + error.getMessage());
                     }
                 });
-    }
-
-    private void loadAppOpenAd() {
-        if (!adsSdkReady || loadingAppOpenAd || appOpenAd != null || isFinishing() || isAdFreeActive()) return;
-        loadingAppOpenAd = true;
-        AppOpenAd.load(this, appOpenAdUnitId(), new AdRequest.Builder().build(),
-                new AppOpenAdLoadCallback() {
-                    @Override public void onAdLoaded(AppOpenAd ad) {
-                        loadingAppOpenAd = false;
-                        appOpenAd = ad;
-                        maybeShowAppOpenAd();
-                    }
-                    @Override public void onAdFailedToLoad(LoadAdError error) {
-                        loadingAppOpenAd = false;
-                        appOpenAd = null;
-                        Log.w("DDCompressorAds", "App open ad failed: " + error.getMessage());
-                    }
-                });
-    }
-
-    private void maybeShowAppOpenAd() {
-        if (!adsSdkReady || isFinishing() || !activityResumed || isAdFreeActive() || showingFullScreenAd) return;
-        int backgroundCount = getSharedPreferences(AD_PREFS, MODE_PRIVATE).getInt("background_count", 0);
-        if (backgroundCount < 4) return;
-        if (appOpenAd == null) {
-            loadAppOpenAd();
-            return;
-        }
-        AppOpenAd ad = appOpenAd;
-        appOpenAd = null;
-        showingFullScreenAd = true;
-        ad.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                showingFullScreenAd = false;
-                getSharedPreferences(AD_PREFS, MODE_PRIVATE).edit().putInt("background_count", 0).apply();
-                loadAppOpenAd();
-            }
-            @Override public void onAdFailedToShowFullScreenContent(AdError error) {
-                showingFullScreenAd = false;
-                Log.w("DDCompressorAds", "App open show failed: " + error.getMessage());
-                loadAppOpenAd();
-            }
-        });
-        ad.show(this);
     }
 
     private void showRewardedAdForAdFree() {
@@ -527,7 +452,6 @@ public class MainActivity extends Activity {
                     loadInterstitialAd();
                     loadRewardedAd();
                     loadRewardedInterstitialAd();
-                    loadAppOpenAd();
                     refreshAdFreeUi();
                 } catch (Throwable t) {
                     disableAdsAfterFailure(t);
@@ -731,7 +655,6 @@ public class MainActivity extends Activity {
     }
 
     private void openPicker() {
-        suppressNextBackgroundCount = true;
         Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         i.addCategory(Intent.CATEGORY_OPENABLE);
         i.setType("*/*");
@@ -741,7 +664,6 @@ public class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK) suppressNextBackgroundCount = false;
         if (requestCode != PICK || resultCode != RESULT_OK || data == null) return;
         ClipData cd = data.getClipData();
         if (cd != null) {
