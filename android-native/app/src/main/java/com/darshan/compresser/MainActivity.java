@@ -25,12 +25,16 @@ public class MainActivity extends Activity {
     private TextView status;
     private final ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
+    private LinearLayout adTopSlot, adBottomSlot;
+    private AdsManager adsManager;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.rgb(16,18,20));
         getWindow().setNavigationBarColor(Color.rgb(16,18,20));
         buildUi();
+        adsManager = new AdsManager(this, adTopSlot, adBottomSlot, () -> toast("30 minutes ad-free activated."));
+        adsManager.start();
         handleIncoming(getIntent());
     }
 
@@ -56,6 +60,8 @@ public class MainActivity extends Activity {
         bar.addView(brand, new LinearLayout.LayoutParams(0, dp(48), 1));
         bar.addView(privacy, new LinearLayout.LayoutParams(-2, dp(48)));
         root.addView(bar);
+        adTopSlot = new LinearLayout(this);
+        root.addView(adTopSlot, margin(0, 2, 0, 4));
 
         TextView title = text("Compress without uploading.", 27, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -109,10 +115,23 @@ public class MainActivity extends Activity {
         info.addView(hubBtn, margin(0,7,0,0));
         root.addView(info, margin(0,0,0,14));
 
+        Button rewardButton = button("Watch an ad • 30 minutes ad-free", Color.rgb(32,37,42), Color.rgb(235,238,241));
+        rewardButton.setOnClickListener(v -> { if (adsManager != null) adsManager.showRewarded(); });
+        root.addView(rewardButton, margin(0,0,0,10));
+
+        adBottomSlot = new LinearLayout(this);
+        root.addView(adBottomSlot, margin(0, 4, 0, 4));
+
         TextView footer = text("D.D. Tech Labs  •  DD Compressor", 10, Color.rgb(100,108,116));
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
         setContentView(scroll);
+    }
+
+    @Override protected void onDestroy() {
+        if (adsManager != null) adsManager.destroy();
+        executor.shutdown();
+        super.onDestroy();
     }
 
     private void openPicker() {
@@ -246,6 +265,7 @@ public class MainActivity extends Activity {
                 compressButton.setEnabled(true);
                 progress.setVisibility(View.GONE);
                 status.setText("Done. Saved files go directly to Downloads / DD Compressor.");
+                if (adsManager != null) adsManager.showInterstitialAtBatchEnd(done);
             });
         });
     }
