@@ -7,7 +7,7 @@ name: Apply uploaded zip
 
 on:
   push:
-    branches: [any]
+    branches: [claude-fixes-the-error]
     paths: ['*.zip']
 
 permissions:
