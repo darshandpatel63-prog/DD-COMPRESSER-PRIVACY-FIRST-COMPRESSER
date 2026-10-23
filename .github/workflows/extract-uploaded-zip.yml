@@ -7,7 +7,7 @@ name: Apply uploaded zip
 
 on:
   push:
-    branches: [main]
+    branches: [any]
     paths: ['*.zip']
 
 permissions:
