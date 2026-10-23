@@ -143,19 +143,26 @@ jobs:
         id: diffcheck
         shell: bash
         continue-on-error: true
-        run: git diff --check
+        run: |
+          git add -N .
+          git diff --check
 
       - name: Run Android build check when a Gradle Android project is present
         id: buildcheck
         shell: bash
         continue-on-error: true
         run: |
-          if [ -f gradlew ] && { [ -f settings.gradle ] || [ -f settings.gradle.kts ]; }; then
-            chmod +x gradlew
-            ./gradlew --no-daemon assembleDebug
+          GRADLEW="$(find . -maxdepth 5 -type f -name gradlew -not -path './.git/*' -print -quit)"
+          if [ -n "$GRADLEW" ]; then
+            PROJECT_DIR="$(dirname "$GRADLEW")"
+            if [ -f "$PROJECT_DIR/settings.gradle" ] || [ -f "$PROJECT_DIR/settings.gradle.kts" ]; then
+              echo "Android/Gradle project detected at: $PROJECT_DIR"
+              (cd "$PROJECT_DIR" && bash ./gradlew --no-daemon assembleDebug)
+            else
+              echo "Found gradlew but no adjacent settings.gradle(.kts); build check skipped."
+            fi
           else
-            echo "No Gradle wrapper at repository root; Android build check skipped."
-            echo "If the ZIP contains the project inside a top-level folder, move/upload the project contents so gradlew is at the repository root, or adapt the workflow."
+            echo "No Gradle wrapper found within five directory levels; build check skipped."
           fi
 
       - name: Commit extracted files and delete the ZIP from this branch
