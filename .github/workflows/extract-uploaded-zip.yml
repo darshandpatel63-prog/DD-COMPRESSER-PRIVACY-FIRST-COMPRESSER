@@ -1,198 +1,151 @@
-name: Extract uploaded ZIP safely
+name: Apply uploaded zip
+
+# ONE workflow only. Upload a .zip to the repo ROOT on main.
+# It unzips, puts every file in its original path (new files added, existing files updated),
+# then deletes the zip. No artifacts, no caches (saves GitHub storage).
+# .github/ is protected: a zip can never change workflows.
 
 on:
   push:
-    branches:
-      - claude-fixes-the-error
-    paths:
-      - '*.zip'
+    branches: [main]
+    paths: ['*.zip']
 
 permissions:
   contents: write
 
 concurrency:
-  group: zip-extract-${{ github.ref }}
+  group: apply-zip
   cancel-in-progress: false
 
 jobs:
-  extract-and-check:
+  apply:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
-      - name: Checkout this branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          fetch-depth: 1
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.x'
-
-      - name: Safely extract root ZIP archive(s) and remove uploaded archive(s)
-        id: extract
-        shell: bash
+      - name: Unzip and place files
+        id: apply
+        continue-on-error: true
         run: |
-          python - <<'PY'
-          import os
-          import re
-          import stat
-          import sys
-          import zipfile
-          from pathlib import Path, PurePosixPath
+          python3 - <<'PY'
+          import os, sys, zipfile, shutil, tempfile, posixpath, glob
 
-          root = Path.cwd()
-          archives = sorted(p for p in root.iterdir() if p.is_file() and p.suffix.lower() == ".zip")
-          if not archives:
-              print("ERROR: No ZIP file found in repository root.")
-              sys.exit(1)
+          MAX_FILES = 3000
+          MAX_TOTAL = 100 * 1024 * 1024
+          MAX_ONE = 25 * 1024 * 1024
+          BLOCKED_PARTS = {".git"}
+          BLOCKED_PREFIXES = (".github/",)
 
-          MAX_ENTRIES = 50000
-          MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024
-          MAX_SINGLE_FILE = 90 * 1024 * 1024
-          extracted = []
-          skipped = []
-          removed = []
+          summary = []
+          def log(msg):
+              print(msg)
+              summary.append(msg)
 
-          for archive in archives:
-              print(f"Inspecting {archive.name} ({archive.stat().st_size} bytes)")
-              try:
-                  with zipfile.ZipFile(archive, "r") as zf:
-                      infos = zf.infolist()
-                      if len(infos) > MAX_ENTRIES:
-                          raise ValueError(f"archive has too many entries: {len(infos)}")
-                      total = sum(i.file_size for i in infos)
-                      if total > MAX_TOTAL_UNCOMPRESSED:
-                          raise ValueError(f"uncompressed archive exceeds 1 GiB: {total} bytes")
+          def check_zip(zf):
+              problems, total, files = [], 0, 0
+              for info in zf.infolist():
+                  name = info.filename.replace("\\", "/")
+                  if info.is_dir():
+                      continue
+                  files += 1
+                  total += info.file_size
+                  norm = posixpath.normpath(name)
+                  parts = norm.split("/")
+                  if name.startswith("/") or ":" in parts[0]:
+                      problems.append(f"absolute path: {name}")
+                  elif ".." in parts or norm.startswith("../"):
+                      problems.append(f"path traversal: {name}")
+                  elif any(p in BLOCKED_PARTS for p in parts):
+                      problems.append(f"blocked (.git): {name}")
+                  elif norm.startswith(BLOCKED_PREFIXES):
+                      problems.append(f"blocked (.github is protected): {name}")
+                  mode = (info.external_attr >> 16) & 0o170000
+                  if mode == 0o120000:
+                      problems.append(f"symlink not allowed: {name}")
+                  if info.file_size > MAX_ONE:
+                      problems.append(f"file too large: {name}")
+              if files > MAX_FILES:
+                  problems.append(f"too many files: {files}")
+              if total > MAX_TOTAL:
+                  problems.append(f"too large uncompressed: {total}")
+              if files == 0:
+                  problems.append("zip is empty")
+              return problems
 
-                      plan = []
-                      for info in infos:
-                          name = info.filename
-                          if not name or "\\" in name or name.startswith("/"):
-                              raise ValueError(f"unsafe path: {name!r}")
-                          path = PurePosixPath(name)
-                          if any(part in ("..", "") for part in path.parts) or re.match(r"^[A-Za-z]:", name):
-                              raise ValueError(f"path traversal/drive path rejected: {name!r}")
-                          parts = [p for p in path.parts if p not in ("", ".")]
-                          if not parts:
-                              continue
-                          if ".git" in [p.lower() for p in parts]:
-                              skipped.append(f"{name} (protected .git path)")
-                              continue
-                          lower_parts = [p.lower() for p in parts]
-                          if len(lower_parts) >= 2 and lower_parts[0] == ".github" and lower_parts[1] == "workflows":
-                              skipped.append(f"{name} (protected workflow directory)")
-                              continue
-                          if info.file_size > MAX_SINGLE_FILE:
-                              raise ValueError(f"single file exceeds 90 MiB GitHub limit: {name}")
-                          mode = (info.external_attr >> 16) & 0xFFFF
-                          if stat.S_ISLNK(mode):
-                              raise ValueError(f"symbolic link entry rejected: {name}")
-                          target = root.joinpath(*parts)
-                          if target == archive:
-                              raise ValueError(f"archive cannot overwrite itself: {name}")
-                          if info.is_dir():
-                              plan.append((info, target, True))
-                          else:
-                              plan.append((info, target, False))
+          def apply_zip(path):
+              added, updated = [], []
+              with zipfile.ZipFile(path) as zf:
+                  problems = check_zip(zf)
+                  if problems:
+                      return None, problems
+                  for info in zf.infolist():
+                      if info.is_dir():
+                          continue
+                      rel = posixpath.normpath(info.filename.replace("\\", "/"))
+                      dest = os.path.join(os.getcwd(), *rel.split("/"))
+                      if os.path.realpath(dest).startswith(os.path.realpath(os.getcwd()) + os.sep) is False:
+                          return None, [f"escapes repo: {rel}"]
+                      existed = os.path.exists(dest)
+                      os.makedirs(os.path.dirname(dest), exist_ok=True)
+                      with zf.open(info) as src, open(dest, "wb") as out:
+                          shutil.copyfileobj(src, out)
+                      if (info.external_attr >> 16) & 0o111:
+                          os.chmod(dest, 0o755)
+                      (updated if existed else added).append(rel)
+              return (added, updated), []
 
-                      # Extract only after every entry in this archive passes safety checks.
-                      for info, target, is_dir in plan:
-                          if is_dir:
-                              target.mkdir(parents=True, exist_ok=True)
-                              continue
-                          target.parent.mkdir(parents=True, exist_ok=True)
-                          if target.exists() and target.is_dir():
-                              raise ValueError(f"file conflicts with existing directory: {info.filename}")
-                          with zf.open(info, "r") as src, open(target, "wb") as dst:
-                              while True:
-                                  chunk = src.read(1024 * 1024)
-                                  if not chunk:
-                                      break
-                                  dst.write(chunk)
-                          extracted.append(info.filename)
+          zips = sorted(glob.glob("*.zip"))
+          if not zips:
+              log("No zip at repo root. Nothing to do.")
+              sys.exit(0)
 
-                  archive.unlink()
-                  removed.append(archive.name)
-              except Exception as exc:
-                  print(f"ERROR processing {archive.name}: {exc}")
-                  print("Archive retained for recovery because extraction did not complete safely.")
-                  sys.exit(1)
+          failed = False
+          applied = []
+          for z in zips:
+              result, problems = apply_zip(z)
+              if problems:
+                  failed = True
+                  log(f"REJECTED {z}:")
+                  for p in problems[:20]:
+                      log(f"  - {p}")
+                  continue
+              added, updated = result
+              log(f"APPLIED {z}: {len(added)} new, {len(updated)} updated")
+              applied.append(z)
 
-          print(f"Extracted file entries: {len(extracted)}")
-          for item in extracted[:500]:
-              print(f"  + {item}")
-          if len(extracted) > 500:
-              print(f"  ... and {len(extracted)-500} more")
-          print(f"Protected/skipped entries: {len(skipped)}")
-          for item in skipped[:100]:
-              print(f"  - {item}")
-          print(f"Removed uploaded archive(s): {', '.join(removed)}")
-          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
-              summary.write("## ZIP extraction result\n\n")
-              summary.write(f"- Extracted entries: **{len(extracted)}**\n")
-              summary.write(f"- Protected entries skipped: **{len(skipped)}**\n")
-              summary.write(f"- Uploaded ZIP archive(s) removed from the working tree: **{', '.join(removed)}**\n")
-              if skipped:
-                  summary.write("\n### Skipped protected paths\n")
-                  summary.write("\n".join(f"- `{x}`" for x in skipped[:100]))
+          with open("/tmp/applied_zips.txt", "w") as f:
+              f.write("\n".join(applied) + ("\n" if applied else ""))
+
+          sp = os.environ.get("GITHUB_STEP_SUMMARY")
+          if sp:
+              with open(sp, "a") as f:
+                  f.write("\n".join(summary) + "\n")
+          sys.exit(1 if failed else 0)
           PY
 
-      - name: Check whitespace and patch errors
-        id: diffcheck
-        shell: bash
-        continue-on-error: true
+      - name: Delete applied zips and commit
         run: |
-          git add -N .
-          git diff --check
-
-      - name: Run Android build check when a Gradle Android project is present
-        id: buildcheck
-        shell: bash
-        continue-on-error: true
-        run: |
-          GRADLEW="$(find . -maxdepth 5 -type f -name gradlew -not -path './.git/*' -print -quit)"
-          if [ -n "$GRADLEW" ]; then
-            PROJECT_DIR="$(dirname "$GRADLEW")"
-            if [ -f "$PROJECT_DIR/settings.gradle" ] || [ -f "$PROJECT_DIR/settings.gradle.kts" ]; then
-              echo "Android/Gradle project detected at: $PROJECT_DIR"
-              (cd "$PROJECT_DIR" && bash ./gradlew --no-daemon assembleDebug)
-            else
-              echo "Found gradlew but no adjacent settings.gradle(.kts); build check skipped."
-            fi
-          else
-            echo "No Gradle wrapper found within five directory levels; build check skipped."
+          set -e
+          if [ -s /tmp/applied_zips.txt ]; then
+            while IFS= read -r z || [ -n "$z" ]; do
+              [ -n "$z" ] && git rm -f -- "$z"
+            done < /tmp/applied_zips.txt
           fi
-
-      - name: Commit extracted files and delete the ZIP from this branch
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           if git diff --cached --quiet; then
-            echo "No extracted changes to commit."
-            exit 0
+            echo "Nothing to commit."
+          else
+            git commit -m "Apply uploaded zip [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
           fi
-          git commit -m "Extract uploaded ZIP and remove archive [skip ci]"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
 
-      - name: Report validation status
-        if: always()
-        shell: bash
-        env:
-          DIFF_OUTCOME: ${{ steps.diffcheck.outcome }}
-          BUILD_OUTCOME: ${{ steps.buildcheck.outcome }}
+      - name: Fail if a zip was rejected
+        if: steps.apply.outcome == 'failure'
         run: |
-          {
-            echo ""
-            echo "## Validation"
-            echo "- git diff --check: ${DIFF_OUTCOME}"
-            echo "- Conditional Android build: ${BUILD_OUTCOME}"
-            echo ""
-            echo "A successful ZIP extraction does not guarantee all source code is bug-free."
-            echo "If the build step failed, inspect its log before using the extracted project."
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "A zip was rejected. See the previous step. The rejected zip is still in the repo root."
+          exit 1
