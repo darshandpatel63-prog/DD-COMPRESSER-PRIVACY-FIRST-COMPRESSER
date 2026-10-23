@@ -68,4 +68,9 @@ dependencies {
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
     implementation 'com.google.android.gms:play-services-ads:25.5.0'
     implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
+
+    // Replit HSDP crash-fix lead: explicitly use Google's patched HSDP version.
+    // AdMob 25.5.0 metadata reportedly resolves HSDP 2.0.1; HSDP 2.2.0 release notes mention an HsdpShimActivity crash fix.
+    // This is a targeted dependency override; confirm with device crash logs/build testing.
+    implementation 'com.google.android.play:hsdp:2.2.0'
 }
