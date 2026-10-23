@@ -1,6 +1,6 @@
 name: Apply uploaded zip
 
-# ONE workflow only. Upload a .zip to the repo ROOT on main.
+# ONE workflow only. Upload a .zip to the repository root on claude-fixes-the-error.
 # It unzips, puts every file in its original path (new files added, existing files updated),
 # then deletes the zip. No artifacts, no caches (saves GitHub storage).
 # .github/ is protected: a zip can never change workflows.
@@ -140,8 +140,8 @@ jobs:
             echo "Nothing to commit."
           else
             git commit -m "Apply uploaded zip [skip ci]"
-            git pull --rebase origin main
-            git push origin HEAD:main
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
 
       - name: Fail if a zip was rejected
