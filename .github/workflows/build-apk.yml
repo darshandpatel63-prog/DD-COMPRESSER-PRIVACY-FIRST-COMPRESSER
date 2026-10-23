@@ -30,21 +30,21 @@ jobs:
           if [ -f "android-native/settings.gradle" ] && [ -f "assets/dd-compressor-icon-512.png" ]; then
             ROOT="."
           else
-            mapfile -t CANDIDATES < <(find . -type f -path "*/android-native/settings.gradle" -not -path "./.git/*" -printf '%h\\n' | sed 's#/android-native$##' | sort -u)
+            mapfile -t CANDIDATES < <(find . -type f -path "*/android-native/settings.gradle" -not -path "./.git/*" -printf '%h\n' | sed 's#/android-native$##' | sort -u)
             VALID=()
-            for candidate in "\${CANDIDATES[@]}"; do
+            for candidate in "${CANDIDATES[@]}"; do
               if [ -f "$candidate/android-native/settings.gradle" ] && [ -f "$candidate/assets/dd-compressor-icon-512.png" ]; then
                 VALID+=("$candidate")
               fi
             done
-            if [ "\${#VALID[@]}" -ne 1 ]; then
-              echo "ERROR: Expected exactly one project root containing Android project and launcher icon; found \${#VALID[@]}." >&2
-              printf '%s\\n' "\${VALID[@]}" >&2
+            if [ "${#VALID[@]}" -ne 1 ]; then
+              echo "ERROR: Expected exactly one project root containing Android project and launcher icon; found ${#VALID[@]}." >&2
+              printf '%s\n' "${VALID[@]}" >&2
               exit 1
             fi
-            ROOT="\${VALID[0]}"
+            ROOT="${VALID[0]}"
           fi
-          ROOT="\${ROOT#./}"
+          ROOT="${ROOT#./}"
           echo "PROJECT_ROOT=$ROOT" >> "$GITHUB_ENV"
           echo "Detected project root: $ROOT"
 
@@ -143,14 +143,14 @@ jobs:
           set -euo pipefail
           APK="$PROJECT_ROOT/android-native/app/build/outputs/apk/release/app-release.apk"
           SIZE=$(stat -c%s "$APK")
-          awk 'BEGIN {printf "Final native APK size: %.2f MB\\n", '"$SIZE"'/1024/1024}'
+          awk 'BEGIN {printf "Final native APK size: %.2f MB\n", '"$SIZE"'/1024/1024}'
           if [ "$SIZE" -ge $((25*1024*1024)) ]; then echo "ERROR: final native APK is not below 25 MB." >&2; exit 1; fi
 
       - name: 📦 Upload native APK artifact
         uses: actions/upload-artifact@v7
         with:
           name: DD-Compressor-Native-Android-APK
-          path: **/android-native/app/build/outputs/apk/release/app-release.apk
+          path: "**/android-native/app/build/outputs/apk/release/app-release.apk"
           if-no-files-found: error
           retention-days: 30
 
