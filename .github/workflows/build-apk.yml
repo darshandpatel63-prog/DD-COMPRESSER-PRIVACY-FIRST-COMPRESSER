@@ -134,7 +134,7 @@ jobs:
           SIGNED="$PROJECT_ROOT/android-native/app/build/outputs/apk/release/app-release.apk"
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)
           test -x "$APKSIGNER"
-          "$APKSIGNER" sign --ks android-native/release.keystore --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" --out "$SIGNED" "$UNSIGNED"
+          "$APKSIGNER" sign --ks "$PROJECT_ROOT/android-native/release.keystore" --ks-key-alias "$ANDROID_KEY_ALIAS" --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" --out "$SIGNED" "$UNSIGNED"
           "$APKSIGNER" verify --verbose "$SIGNED"
 
       - name: 📏 Enforce APK under 25 MB
@@ -150,7 +150,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: DD-Compressor-Native-Android-APK
-          path: ${{ env.PROJECT_ROOT }}/android-native/app/build/outputs/apk/release/app-release.apk
+          path: **/android-native/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -162,7 +162,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${VERSION_NAME}"
-          APK="android-native/app/build/outputs/apk/release/app-release.apk"
+          APK="$PROJECT_ROOT/android-native/app/build/outputs/apk/release/app-release.apk"
           test -f "$APK"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG already exists. Refusing to overwrite it." >&2
