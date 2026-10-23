@@ -1,0 +1,191 @@
+name: Extract uploaded ZIP safely
+
+on:
+  push:
+    branches:
+      - claude-fixes-the-error
+    paths:
+      - '*.zip'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zip-extract-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  extract-and-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout this branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Safely extract root ZIP archive(s) and remove uploaded archive(s)
+        id: extract
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import re
+          import stat
+          import sys
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          root = Path.cwd()
+          archives = sorted(p for p in root.iterdir() if p.is_file() and p.suffix.lower() == ".zip")
+          if not archives:
+              print("ERROR: No ZIP file found in repository root.")
+              sys.exit(1)
+
+          MAX_ENTRIES = 50000
+          MAX_TOTAL_UNCOMPRESSED = 1024 * 1024 * 1024
+          MAX_SINGLE_FILE = 90 * 1024 * 1024
+          extracted = []
+          skipped = []
+          removed = []
+
+          for archive in archives:
+              print(f"Inspecting {archive.name} ({archive.stat().st_size} bytes)")
+              try:
+                  with zipfile.ZipFile(archive, "r") as zf:
+                      infos = zf.infolist()
+                      if len(infos) > MAX_ENTRIES:
+                          raise ValueError(f"archive has too many entries: {len(infos)}")
+                      total = sum(i.file_size for i in infos)
+                      if total > MAX_TOTAL_UNCOMPRESSED:
+                          raise ValueError(f"uncompressed archive exceeds 1 GiB: {total} bytes")
+
+                      plan = []
+                      for info in infos:
+                          name = info.filename
+                          if not name or "\\" in name or name.startswith("/"):
+                              raise ValueError(f"unsafe path: {name!r}")
+                          path = PurePosixPath(name)
+                          if any(part in ("..", "") for part in path.parts) or re.match(r"^[A-Za-z]:", name):
+                              raise ValueError(f"path traversal/drive path rejected: {name!r}")
+                          parts = [p for p in path.parts if p not in ("", ".")]
+                          if not parts:
+                              continue
+                          if ".git" in [p.lower() for p in parts]:
+                              skipped.append(f"{name} (protected .git path)")
+                              continue
+                          lower_parts = [p.lower() for p in parts]
+                          if len(lower_parts) >= 2 and lower_parts[0] == ".github" and lower_parts[1] == "workflows":
+                              skipped.append(f"{name} (protected workflow directory)")
+                              continue
+                          if info.file_size > MAX_SINGLE_FILE:
+                              raise ValueError(f"single file exceeds 90 MiB GitHub limit: {name}")
+                          mode = (info.external_attr >> 16) & 0xFFFF
+                          if stat.S_ISLNK(mode):
+                              raise ValueError(f"symbolic link entry rejected: {name}")
+                          target = root.joinpath(*parts)
+                          if target == archive:
+                              raise ValueError(f"archive cannot overwrite itself: {name}")
+                          if info.is_dir():
+                              plan.append((info, target, True))
+                          else:
+                              plan.append((info, target, False))
+
+                      # Extract only after every entry in this archive passes safety checks.
+                      for info, target, is_dir in plan:
+                          if is_dir:
+                              target.mkdir(parents=True, exist_ok=True)
+                              continue
+                          target.parent.mkdir(parents=True, exist_ok=True)
+                          if target.exists() and target.is_dir():
+                              raise ValueError(f"file conflicts with existing directory: {info.filename}")
+                          with zf.open(info, "r") as src, open(target, "wb") as dst:
+                              while True:
+                                  chunk = src.read(1024 * 1024)
+                                  if not chunk:
+                                      break
+                                  dst.write(chunk)
+                          extracted.append(info.filename)
+
+                  archive.unlink()
+                  removed.append(archive.name)
+              except Exception as exc:
+                  print(f"ERROR processing {archive.name}: {exc}")
+                  print("Archive retained for recovery because extraction did not complete safely.")
+                  sys.exit(1)
+
+          print(f"Extracted file entries: {len(extracted)}")
+          for item in extracted[:500]:
+              print(f"  + {item}")
+          if len(extracted) > 500:
+              print(f"  ... and {len(extracted)-500} more")
+          print(f"Protected/skipped entries: {len(skipped)}")
+          for item in skipped[:100]:
+              print(f"  - {item}")
+          print(f"Removed uploaded archive(s): {', '.join(removed)}")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## ZIP extraction result\n\n")
+              summary.write(f"- Extracted entries: **{len(extracted)}**\n")
+              summary.write(f"- Protected entries skipped: **{len(skipped)}**\n")
+              summary.write(f"- Uploaded ZIP archive(s) removed from the working tree: **{', '.join(removed)}**\n")
+              if skipped:
+                  summary.write("\n### Skipped protected paths\n")
+                  summary.write("\n".join(f"- `{x}`" for x in skipped[:100]))
+          PY
+
+      - name: Check whitespace and patch errors
+        id: diffcheck
+        shell: bash
+        continue-on-error: true
+        run: git diff --check
+
+      - name: Run Android build check when a Gradle Android project is present
+        id: buildcheck
+        shell: bash
+        continue-on-error: true
+        run: |
+          if [ -f gradlew ] && { [ -f settings.gradle ] || [ -f settings.gradle.kts ]; }; then
+            chmod +x gradlew
+            ./gradlew --no-daemon assembleDebug
+          else
+            echo "No Gradle wrapper at repository root; Android build check skipped."
+            echo "If the ZIP contains the project inside a top-level folder, move/upload the project contents so gradlew is at the repository root, or adapt the workflow."
+          fi
+
+      - name: Commit extracted files and delete the ZIP from this branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No extracted changes to commit."
+            exit 0
+          fi
+          git commit -m "Extract uploaded ZIP and remove archive [skip ci]"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
+
+      - name: Report validation status
+        if: always()
+        shell: bash
+        env:
+          DIFF_OUTCOME: ${{ steps.diffcheck.outcome }}
+          BUILD_OUTCOME: ${{ steps.buildcheck.outcome }}
+        run: |
+          {
+            echo ""
+            echo "## Validation"
+            echo "- git diff --check: ${DIFF_OUTCOME}"
+            echo "- Conditional Android build: ${BUILD_OUTCOME}"
+            echo ""
+            echo "A successful ZIP extraction does not guarantee all source code is bug-free."
+            echo "If the build step failed, inspect its log before using the extracted project."
+          } >> "$GITHUB_STEP_SUMMARY"
