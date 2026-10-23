@@ -25,13 +25,36 @@ public class MainActivity extends Activity {
     private TextView status;
     private final ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
+    private LinearLayout adTopSlot, adBottomSlot;
+    private AdsManager adsManager;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(Color.rgb(16,18,20));
         getWindow().setNavigationBarColor(Color.rgb(16,18,20));
         buildUi();
+        startAds();
         handleIncoming(getIntent());
+    }
+
+    /** Ads are optional: whatever happens here must never stop the app from opening. */
+    private void startAds() {
+        try {
+            adsManager = new AdsManager(this, adTopSlot, adBottomSlot, () -> toast("30 minutes ad-free activated."));
+            adsManager.start();
+        } catch (Throwable ignored) {
+            adsManager = null;
+        }
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        try { if (adsManager != null) adsManager.resume(); } catch (Throwable ignored) { }
+    }
+
+    @Override protected void onPause() {
+        try { if (adsManager != null) adsManager.pause(); } catch (Throwable ignored) { }
+        super.onPause();
     }
 
     @Override protected void onNewIntent(Intent intent) {
@@ -56,6 +79,8 @@ public class MainActivity extends Activity {
         bar.addView(brand, new LinearLayout.LayoutParams(0, dp(48), 1));
         bar.addView(privacy, new LinearLayout.LayoutParams(-2, dp(48)));
         root.addView(bar);
+        adTopSlot = new LinearLayout(this);
+        root.addView(adTopSlot, margin(0, 2, 0, 4));
 
         TextView title = text("Compress without uploading.", 27, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -109,6 +134,17 @@ public class MainActivity extends Activity {
         info.addView(hubBtn, margin(0,7,0,0));
         root.addView(info, margin(0,0,0,14));
 
+        Button rewardButton = button("Watch an ad • 30 minutes ad-free", Color.rgb(32,37,42), Color.rgb(235,238,241));
+        rewardButton.setOnClickListener(v -> {
+            if (adsManager == null) { toast("Ads are not available right now."); return; }
+            try { adsManager.showRewarded(); } catch (Throwable ignored) { }
+        });
+        root.addView(rewardButton, margin(0,0,0,10));
+
+        adBottomSlot = new LinearLayout(this);
+        // Extra space above the bottom banner so nobody taps the ad by accident instead of the button above it.
+        root.addView(adBottomSlot, margin(0, 16, 0, 4));
+
         TextView footer = text("D.D. Tech Labs  •  DD Compressor", 10, Color.rgb(100,108,116));
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
@@ -116,6 +152,7 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        try { if (adsManager != null) adsManager.destroy(); } catch (Throwable ignored) { }
         executor.shutdown();
         super.onDestroy();
     }
@@ -247,10 +284,12 @@ public class MainActivity extends Activity {
                 }
                 main.post(() -> progress.setProgress(index*100/items.size()));
             }
+            final int completedCount = done;
             main.post(() -> {
                 compressButton.setEnabled(true);
                 progress.setVisibility(View.GONE);
                 status.setText("Done. Saved files go directly to Downloads / DD Compressor.");
+                try { if (adsManager != null) adsManager.showInterstitialAtBatchEnd(completedCount); } catch (Throwable ignored) { }
             });
         });
     }
