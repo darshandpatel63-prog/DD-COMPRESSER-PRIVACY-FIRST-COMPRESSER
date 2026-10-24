@@ -23,6 +23,8 @@ import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
+import com.google.android.gms.ads.nativead.NativeAd;
+import com.google.android.gms.ads.nativead.NativeAdView;
 import com.google.android.ump.ConsentInformation;
 import com.google.android.ump.ConsentRequestParameters;
 import com.google.android.ump.UserMessagingPlatform;
@@ -42,7 +44,7 @@ import com.google.android.ump.UserMessagingPlatform;
 final class AdsManager {
     private final Activity activity;
     private final Context appContext;
-    private final LinearLayout topSlot, bottomSlot;
+    private final LinearLayout topSlot, bottomSlot, nativeBottomSlot;
     private final Runnable onReward;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable adFreeExpired = this::onAdFreeExpired;
@@ -51,6 +53,8 @@ final class AdsManager {
     private AdView topBanner, bottomBanner;
     private InterstitialAd interstitial;
     private RewardedAd rewarded;
+    private final java.util.ArrayList<NativeAdView> nativeViews = new java.util.ArrayList<>();
+    private final java.util.ArrayList<NativeAd> nativeAds = new java.util.ArrayList<>();
 
     private boolean enabled;          // AdsGuard allowed ads for this launch and nothing has failed yet
     private boolean destroyed;
@@ -67,15 +71,17 @@ final class AdsManager {
     private final int[] adFails = new int[4];       // consecutive failures per ad type
     private final Runnable reportTask = this::reportStatus;
 
-    AdsManager(Activity activity, LinearLayout topSlot, LinearLayout bottomSlot, Runnable onReward) {
+    AdsManager(Activity activity, LinearLayout topSlot, LinearLayout bottomSlot, LinearLayout nativeBottomSlot, Runnable onReward) {
         this.activity = activity;
         this.appContext = activity.getApplicationContext();
         this.topSlot = topSlot;
         this.bottomSlot = bottomSlot;
+        this.nativeBottomSlot = nativeBottomSlot;
         this.onReward = onReward;
         // No ad yet => no empty gap on screen.
         topSlot.setVisibility(View.GONE);
         bottomSlot.setVisibility(View.GONE);
+        nativeBottomSlot.setVisibility(View.GONE);
     }
 
     // ------------------------------------------------------------------
@@ -189,7 +195,7 @@ final class AdsManager {
         runOnMain(() -> {
             destroyed = true;
             main.removeCallbacksAndMessages(null);
-            try { removeBanners(); } catch (Throwable ignored) { }
+            try { removeBanners(); clearNativeAds(); } catch (Throwable ignored) { }
             interstitial = null;
             rewarded = null;
             try { AdsGuard.closeWindow(appContext); } catch (Throwable ignored) { }
@@ -254,11 +260,10 @@ final class AdsManager {
 
     /** Loads every ad type that is missing. Does nothing while ad-free. */
     private void loadAll() {
-        if (!usable() || !sdkReady || isAdFree()) return;
+        if (!usable() || !sdkReady) return;
         if (AdsConfig.TOP_BANNER && topBanner == null) loadBanner(true);
         if (AdsConfig.BOTTOM_BANNER && bottomBanner == null) loadBanner(false);
-        loadInterstitial();
-        loadRewarded();
+        if (!isAdFree()) { loadInterstitial(); loadRewarded(); showNativeAd(nativeBottomSlot); }
     }
 
     // ------------------------------------------------------------------
@@ -268,7 +273,7 @@ final class AdsManager {
     // getCurrentOrientationAnchoredAdaptiveBannerAdSize is deprecated since SDK 25.0.0 but still works.
     @SuppressWarnings("deprecation")
     private void loadBanner(boolean top) {
-        if (!usable() || !sdkReady || isAdFree()) return;
+        if (!usable() || !sdkReady) return;
         try {
             final LinearLayout slot = top ? topSlot : bottomSlot;
             AdView old = top ? topBanner : bottomBanner;
@@ -384,7 +389,10 @@ final class AdsManager {
             adFreeUntil = SystemClock.elapsedRealtime() + AdsConfig.AD_FREE_MS;
             main.removeCallbacks(adFreeExpired);
             main.postDelayed(adFreeExpired, AdsConfig.AD_FREE_MS);
-            removeBanners();
+            // Banner ads intentionally remain visible during the 30-minute reward.
+            interstitial = null;
+            rewarded = null;
+            clearNativeAds();
             if (onReward != null) onReward.run();
         } catch (Throwable t) {
             fail("reward", t);
@@ -393,7 +401,74 @@ final class AdsManager {
 
     private void onAdFreeExpired() {
         adFreeUntil = 0L;
-        loadAll(); // banners come back, interstitial/rewarded are preloaded again
+        loadAll(); // Banner ads remain; native/interstitial/rewarded ads resume.
+    }
+
+
+    /** Loads and renders a Native Advanced ad in a supplied slot. Failures never affect compression. */
+    void showNativeAd(LinearLayout slot) {
+        runOnMain(() -> {
+            try {
+                if (!usable() || !sdkReady || isAdFree() || slot == null || (slot == nativeBottomSlot && slot.getChildCount() > 0)) return;
+                NativeAd.load(activity, AdsConfig.nativeId(), new AdRequest.Builder().build(),
+                        new com.google.android.gms.ads.nativead.NativeAdLoadCallback() {
+                            @Override public void onNativeAdLoaded(NativeAd ad) {
+                                main.post(() -> {
+                                    if (!usable() || isAdFree()) { ad.destroy(); return; }
+                                    try {
+                                        NativeAdView adView = new NativeAdView(activity);
+                                        LinearLayout card = new LinearLayout(activity);
+                                        card.setOrientation(LinearLayout.VERTICAL);
+                                        card.setPadding(dp(12), dp(10), dp(12), dp(10));
+                                        card.setBackgroundColor(android.graphics.Color.rgb(28, 32, 36));
+                                        TextView label = new TextView(activity);
+                                        label.setText("Ad"); label.setTextSize(10);
+                                        label.setTextColor(android.graphics.Color.rgb(227, 162, 74));
+                                        TextView headline = new TextView(activity);
+                                        headline.setText(ad.getHeadline()); headline.setTextSize(15);
+                                        headline.setTextColor(android.graphics.Color.WHITE);
+                                        headline.setTypeface(null, android.graphics.Typeface.BOLD);
+                                        adView.setHeadlineView(headline);
+                                        card.addView(label); card.addView(headline);
+                                        if (ad.getBody() != null) {
+                                            TextView body = new TextView(activity); body.setText(ad.getBody());
+                                            body.setTextSize(12); body.setTextColor(android.graphics.Color.LTGRAY);
+                                            adView.setBodyView(body); card.addView(body);
+                                        }
+                                        if (ad.getCallToAction() != null) {
+                                            TextView cta = new TextView(activity); cta.setText(ad.getCallToAction());
+                                            cta.setTextSize(13); cta.setTextColor(android.graphics.Color.rgb(42, 28, 8));
+                                            cta.setGravity(Gravity.CENTER); cta.setPadding(dp(10), dp(8), dp(10), dp(8));
+                                            cta.setBackgroundColor(android.graphics.Color.rgb(227, 162, 74));
+                                            adView.setCallToActionView(cta); card.addView(cta);
+                                        }
+                                        adView.addView(card); adView.setNativeAd(ad);
+                                        slot.addView(adView, new LinearLayout.LayoutParams(-1, -2));
+                                        slot.setVisibility(View.VISIBLE);
+                                        nativeViews.add(adView); nativeAds.add(ad);
+                                    } catch (Throwable t) { try { ad.destroy(); } catch (Throwable ignored) { } }
+                                });
+                            }
+                            @Override public void onAdFailedToLoad(LoadAdError error) { }
+                        });
+            } catch (Throwable ignored) { }
+        });
+    }
+
+    private int dp(int value) { return Math.round(value * activity.getResources().getDisplayMetrics().density); }
+
+    private void clearNativeAds() {
+        for (NativeAdView view : new java.util.ArrayList<>(nativeViews)) {
+            try {
+                if (view.getParent() instanceof android.view.ViewGroup)
+                    ((android.view.ViewGroup) view.getParent()).removeView(view);
+                view.destroy();
+            } catch (Throwable ignored) { }
+        }
+        nativeViews.clear();
+        for (NativeAd ad : nativeAds) { try { ad.destroy(); } catch (Throwable ignored) { } }
+        nativeAds.clear();
+        if (nativeBottomSlot != null) nativeBottomSlot.setVisibility(View.GONE);
     }
 
     // ------------------------------------------------------------------
@@ -423,7 +498,7 @@ final class AdsManager {
 
     private void retry(final int kind) {
         try {
-            if (!usable() || !sdkReady || isAdFree() || adOk[kind]) return;
+            if (!usable() || !sdkReady || (isAdFree() && kind != TOP && kind != BOTTOM) || adOk[kind]) return;
             if (!resumed) { // do not request ads while the app is in the background
                 main.postDelayed(() -> retry(kind), AdsConfig.RETRY_FIRST_MS);
                 return;
@@ -431,7 +506,7 @@ final class AdsManager {
             if (kind == TOP) loadBanner(true);
             else if (kind == BOTTOM) loadBanner(false);
             else if (kind == INTER) loadInterstitial();
-            else loadRewarded();
+            else if (kind == REWARD) loadRewarded();
         } catch (Throwable t) {
             fail("retry", t);
         }
@@ -449,7 +524,8 @@ final class AdsManager {
                 + "\nTop banner: " + adStatus[TOP]
                 + "\nBottom banner: " + adStatus[BOTTOM]
                 + "\nInterstitial: " + adStatus[INTER]
-                + "\nRewarded: " + adStatus[REWARD];
+                + "\nRewarded: " + adStatus[REWARD]
+                + "\nNative: " + (isAdFree() ? "paused (ad-free)" : "configured");
     }
 
     /** Short, readable reason for a failed load. Codes: 0 internal, 1 invalid request, 2 network, 3 no fill. */
@@ -488,7 +564,8 @@ final class AdsManager {
         String reason = where + " -> " + AdsGuard.brief(t);
         try { AdsGuard.trip(appContext, reason); } catch (Throwable ignored) { }
         notice("Ads switched off (" + reason + ")");
-        try { removeBanners(); } catch (Throwable ignored) { }
+        try { removeBanners(); clearNativeAds(); }
+        catch (Throwable ignored) { }
         interstitial = null;
         rewarded = null;
     }
