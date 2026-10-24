@@ -59,6 +59,13 @@ final class AdsConfig {
     // ------------------------------------------------------------------
     // SAFETY
     // ------------------------------------------------------------------
+    /**
+     * Master kill-switch. false = the Ads SDK is never touched at all (no consent, no initialize, no ads),
+     * but the library stays in the APK. Useful to find out whether a crash comes from running ads or
+     * only from the library being present.
+     */
+    static final boolean ADS_ENABLED = true;
+
     /** Ads wait this long after launch so the first screen is always drawn before any ads code runs. */
     static final long START_DELAY_MS = 1500L;
 

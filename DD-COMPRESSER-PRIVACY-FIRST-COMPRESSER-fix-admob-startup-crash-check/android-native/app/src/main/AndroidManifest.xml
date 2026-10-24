@@ -6,6 +6,7 @@
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
 
     <application
+        android:name=".DDApplication"
         android:theme="@style/AppTheme"
         android:label="DD Compressor"
         android:icon="@drawable/dd_compressor_icon"
@@ -22,6 +23,16 @@
              SDK explicitly (consent first, worker thread, after the first screen is drawn). -->
         <provider
             android:name="com.google.android.gms.ads.MobileAdsInitProvider"
+            tools:node="remove" />
+
+        <!-- Crash-safety, found by inspecting the crashing APK: the Ads SDK drags in WorkManager 2.7.0 +
+             Room 2.2.5 + ProfileInstaller, and their androidx.startup provider runs automatically while the
+             process is starting (before any activity and before any of our try/catch code). A ads-free build
+             has none of this, which matches "works without AdMob, closes instantly with AdMob".
+             This app uses none of those components itself, so the whole provider is removed. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
             tools:node="remove" />
 
         <activity

@@ -79,6 +79,7 @@ final class AdsManager {
     void start() {
         runOnMain(() -> {
             try {
+                if (!AdsConfig.ADS_ENABLED) return;
                 enabled = AdsGuard.begin(appContext);
                 String earlier = AdsGuard.takeNotice(appContext);
                 if (earlier != null) notice("Ads were paused after a startup problem:\n" + earlier);

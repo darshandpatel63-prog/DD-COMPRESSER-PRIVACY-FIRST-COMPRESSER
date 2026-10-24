@@ -10,3 +10,8 @@
 -keepclassmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
+
+# TEMPORARY (while the launch crash is being tracked down): keep class names and line numbers so the
+# crash report in Downloads / DD Compressor is readable. Remove these 2 lines once the app is stable.
+-dontobfuscate
+-keepattributes SourceFile,LineNumberTable

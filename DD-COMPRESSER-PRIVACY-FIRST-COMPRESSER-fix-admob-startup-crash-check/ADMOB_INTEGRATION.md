@@ -52,10 +52,11 @@
 | ફાઇલ | AdMob નો ભાગ |
 |---|---|
 | `android-native/app/build.gradle` | `play-services-ads:25.5.0` અને `user-messaging-platform:4.0.0` (2 dependencies) |
-| `android-native/app/src/main/AndroidManifest.xml` | `xmlns:tools`, permissions: `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`; meta-data `APPLICATION_ID`; provider `MobileAdsInitProvider` (`tools:node="remove"`) |
+| `android-native/app/src/main/AndroidManifest.xml` | `xmlns:tools`, permissions: `INTERNET`, `ACCESS_NETWORK_STATE`, `com.google.android.gms.permission.AD_ID`; meta-data `APPLICATION_ID`; provider `MobileAdsInitProvider` (`tools:node="remove"`); provider `androidx.startup.InitializationProvider` (`tools:node="remove"`, નીચે વિભાગ 4A); `android:name=".DDApplication"` |
 | `.../compresser/AdsConfig.java` | બધા IDs + નિયમો (7 ફાઇલો, 30 મિનિટ, વગેરે) — **આખી ફાઇલ** |
 | `.../compresser/AdsGuard.java` | Crash-loop breaker — **આખી ફાઇલ** |
 | `.../compresser/AdsManager.java` | Consent, initialize, banner, interstitial, rewarded — **આખી ફાઇલ** |
+| `.../compresser/DDApplication.java`, `CrashLog.java` | Crash logger (ads નો ભાગ નથી, પણ crash શોધવા માટે; ઇચ્છો તો રાખી શકાય) |
 | `.../compresser/MainActivity.java` | fields `adTopSlot`, `adBottomSlot`, `adsManager` · `startAds()` · `onResume()`/`onPause()` · ઉપરનો ad slot (`buildUi`) · reward બટન + નીચેનો ad slot · `onDestroy()` માં `destroy()` · batch end પર `showInterstitialAtBatchEnd(completedCount)` |
 | `android-native/app/proguard-rules.pro` | હાલમાં AdMob નો કોઈ rule નથી (નીચે "Troubleshooting" જુઓ) |
 | `js/main.js`, `index.html` | **હવે કંઈ નથી.** જૂનું `js/admob.js` (Capacitor plugin) native app માં વપરાતું ન હતું, તેથી delete કર્યું અને ફરી ઉમેર્યું નથી. |
@@ -78,6 +79,21 @@ App ખોલતાં જ splash પછી તરત બંધ થઈ જતી
 
 **Toast નો અર્થ:** `Ads switched off (consent -> NoSuchMethodError: ...)` — એટલે ads નું કોઈ ભાગ fail થયો, app ચાલુ રહી. આ લખાણનો screenshot લઈને મોકલો, કારણ તરત મળી જશે.
 જ્યારે બધું સ્થિર લાગે, ત્યારે `AdsConfig.SHOW_DEBUG_NOTICES = false` કરવાથી આવા toast બંધ થશે.
+
+### 4A) 🔎 Crash ની તપાસ (APK અંદરથી જોઈને, 23 ઓક્ટોબર 2026)
+
+તમારા `app-release.apk` ને ખોલીને જોયું (મેં ફક્ત static વિશ્લેષણ કર્યું, ફોન પર ચલાવ્યું નથી):
+
+- તે APK માં `AdsGuard` / `AdsManager` classes છે, એટલે તે STEP 2 જ છે, અને crash તે છતાં થતો હતો. મતલબ crash એવી જગ્યાએ છે જે મારા try/catch ની **બહાર** છે.
+- Video મુજબ app નું splash આવે છે અને પહેલી સ્ક્રીન દોરાય તે પહેલાં જ બંધ થાય છે, એટલે crash **process શરૂ થતાં** કે `onCreate` ની શરૂઆતમાં છે.
+- Ads SDK પોતાની સાથે **WorkManager 2.7.0, Room 2.2.5, ProfileInstaller 1.3.0** લાવે છે. તેમનો `androidx.startup.InitializationProvider` app શરૂ થતાં જ આપમેળે ચાલે છે, કોઈ activity કે મારા કોડ પહેલાં. Ads વગરના build માં આ બધું હોતું જ નથી. આ "ads વગર ચાલે, ads સાથે તરત બંધ" વાળા લક્ષણ સાથે બંધ બેસે છે.
+- R8 થી કોઈ class કે method ગાયબ નથી (dex માં તૂટેલા references: 0), એટલે "R8 એ કંઈક કાઢી નાખ્યું" એ કારણ નથી.
+- **સાચું કારણ stack trace વગર પાકું નથી.** એટલે ત્રણ પગલાં લીધાં: (1) તે startup provider દૂર કર્યું (app માં WorkManager/Room વપરાતું નથી), (2) `CrashLog` ઉમેર્યું, (3) `-dontobfuscate` (ફક્ત અસ્થાયી) જેથી નામો વાંચી શકાય.
+
+**Crash થાય તો ફાઇલ ક્યાં મળે:** ફોનના `Downloads / DD Compressor / DD-Compressor-crash-<તારીખ>-<સમય>.txt`. કોઈ પણ file manager થી ખોલો, આખું લખાણ copy કરીને મોકલો. તેમાં ફક્ત stack trace અને ફોનનું મોડેલ/Android version છે, કોઈ ફાઇલ કે અંગત ડેટા નથી, અને કશું ક્યાંય મોકલાતું નથી.
+જ્યારે બધું સ્થિર થાય, ત્યારે `CrashLog.SAVE_TO_DOWNLOADS = false` અને `proguard-rules.pro` ની `-dontobfuscate` / `-keepattributes` લીટીઓ કાઢી નાખો.
+
+**જો હજી crash આવે, તો એક જ ફેરફારથી અલગ કરો:** `AdsConfig.ADS_ENABLED = false` કરીને build કરો. SDK library APK માં રહેશે પણ ક્યાંય ચાલશે નહીં. જો તે build ચાલે, તો કારણ library ની હાજરી/startup માં છે; જો તે પણ crash થાય, તો કારણ ads સાથે સંબંધિત નથી અને crash ફાઇલ બતાવશે.
 
 ---
 
