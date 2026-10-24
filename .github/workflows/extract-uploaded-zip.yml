@@ -1,20 +1,20 @@
 name: Apply uploaded zip
 
-# ONE workflow only. Upload a .zip to the repository root on claude-fixes-the-error.
+# Upload a .zip to the repository root on Ddddddd-ccccccccc.
 # It unzips, puts every file in its original path (new files added, existing files updated),
 # then deletes the zip. No artifacts, no caches (saves GitHub storage).
 # .github/ is protected: a zip can never change workflows.
 
 on:
   push:
-    branches: [claude-fixes-the-error]
+    branches: [Ddddddd-ccccccccc]
     paths: ['*.zip']
 
 permissions:
   contents: write
 
 concurrency:
-  group: apply-zip
+  group: apply-zip-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
