@@ -662,7 +662,7 @@ public class MainActivity extends Activity {
                 mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
                         mainScroll.getPaddingRight(), bannerSpace + navBottom + dp(16));
             }
-            return view.onApplyWindowInsets(insets);
+            return insets;
         });
         setContentView(screen);
         screen.requestApplyInsets();
