@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://darshandpatel63-prog.github.io/DD-COMPRESSER-PRIVACY-FIRST-COMPRESSER/sitemap.xml
