@@ -5,14 +5,14 @@ def admobPropertiesFile = rootProject.file("admob.properties")
 if (admobPropertiesFile.exists()) {
     admobPropertiesFile.withInputStream { admobProperties.load(it) }
 }
-def admobAppId = admobProperties.getProperty("ADMOB_APP_ID", "ca-app-pub-3940256099942544~3347511713").trim()
-def admobBannerId = admobProperties.getProperty("ADMOB_BANNER_AD_UNIT_ID", "ca-app-pub-3940256099942544/9214589741").trim()
-def admobInterstitialId = admobProperties.getProperty("ADMOB_INTERSTITIAL_AD_UNIT_ID", "ca-app-pub-3940256099942544/1033173712").trim()
-def admobRewardedId = admobProperties.getProperty("ADMOB_REWARDED_AD_UNIT_ID", "ca-app-pub-3940256099942544/5224354917").trim()
-def admobRewardedInterstitialId = admobProperties.getProperty("ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID", "ca-app-pub-3940256099942544/5354046379").trim()
-def admobNativeId = admobProperties.getProperty("ADMOB_NATIVE_AD_UNIT_ID", "ca-app-pub-3940256099942544/2247696110").trim()
-def admobAppOpenId = admobProperties.getProperty("ADMOB_APP_OPEN_AD_UNIT_ID", "ca-app-pub-3940256099942544/9257395921").trim()
-def admobTestMode = Boolean.parseBoolean(admobProperties.getProperty("ADMOB_TEST_MODE", "true").trim())
+def admobAppId = admobProperties.getProperty("ADMOB_APP_ID", "ca-app-pub-9557757991977213~8750973505").trim()
+def admobBannerId = admobProperties.getProperty("ADMOB_BANNER_AD_UNIT_ID", "ca-app-pub-9557757991977213/8928348733").trim()
+def admobInterstitialId = admobProperties.getProperty("ADMOB_INTERSTITIAL_AD_UNIT_ID", "ca-app-pub-9557757991977213/9510802662").trim()
+def admobRewardedId = admobProperties.getProperty("ADMOB_REWARDED_AD_UNIT_ID", "ca-app-pub-9557757991977213/1993993468").trim()
+def admobRewardedInterstitialId = admobProperties.getProperty("ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID", "ca-app-pub-9557757991977213/5180675414").trim()
+def admobNativeId = admobProperties.getProperty("ADMOB_NATIVE_AD_UNIT_ID", "ca-app-pub-9557757991977213/5013329464").trim()
+def admobAppOpenId = admobProperties.getProperty("ADMOB_APP_OPEN_AD_UNIT_ID", "ca-app-pub-9557757991977213/1074084451").trim()
+def admobTestMode = Boolean.parseBoolean(admobProperties.getProperty("ADMOB_TEST_MODE", "false").trim())
 def effectiveAdMobAppId = admobTestMode ? "ca-app-pub-3940256099942544~3347511713" : admobAppId
 def effectiveBannerId = admobTestMode ? "ca-app-pub-3940256099942544/9214589741" : admobBannerId
 def effectiveInterstitialId = admobTestMode ? "ca-app-pub-3940256099942544/1033173712" : admobInterstitialId
@@ -32,14 +32,14 @@ android {
         versionCode Integer.parseInt(System.getenv('VERSION_CODE') ?: '1')
         versionName System.getenv('VERSION_NAME') ?: '1.0.0'
         manifestPlaceholders = [ADMOB_APP_ID: effectiveAdMobAppId]
-        buildConfigField 'String', 'ADMOB_APP_ID', "\"${effectiveAdMobAppId}\""
-        buildConfigField 'String', 'ADMOB_BANNER_AD_UNIT_ID', "\"${effectiveBannerId}\""
-        buildConfigField 'String', 'ADMOB_INTERSTITIAL_AD_UNIT_ID', "\"${effectiveInterstitialId}\""
-        buildConfigField 'String', 'ADMOB_REWARDED_AD_UNIT_ID', "\"${effectiveRewardedId}\""
-        buildConfigField 'String', 'ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID', "\"${effectiveRewardedInterstitialId}\""
-        buildConfigField 'String', 'ADMOB_NATIVE_AD_UNIT_ID', "\"${effectiveNativeId}\""
-        buildConfigField 'String', 'ADMOB_APP_OPEN_AD_UNIT_ID', "\"${effectiveAppOpenId}\""
-        buildConfigField 'boolean', 'ADMOB_TEST_MODE', "${admobTestMode}"
+        buildConfigField 'String', 'ADMOB_APP_ID', '"' + effectiveAdMobAppId + '"'
+        buildConfigField 'String', 'ADMOB_BANNER_AD_UNIT_ID', '"' + effectiveBannerId + '"'
+        buildConfigField 'String', 'ADMOB_INTERSTITIAL_AD_UNIT_ID', '"' + effectiveInterstitialId + '"'
+        buildConfigField 'String', 'ADMOB_REWARDED_AD_UNIT_ID', '"' + effectiveRewardedId + '"'
+        buildConfigField 'String', 'ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID', '"' + effectiveRewardedInterstitialId + '"'
+        buildConfigField 'String', 'ADMOB_NATIVE_AD_UNIT_ID', '"' + effectiveNativeId + '"'
+        buildConfigField 'String', 'ADMOB_APP_OPEN_AD_UNIT_ID', '"' + effectiveAppOpenId + '"'
+        buildConfigField 'boolean', 'ADMOB_TEST_MODE', '' + admobTestMode
     }
 
     buildFeatures { buildConfig true }
@@ -68,4 +68,6 @@ dependencies {
     implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
     implementation 'com.google.android.gms:play-services-ads:25.5.0'
     implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
+    // Defensive override for older transitive WorkManager versions.
+    implementation 'androidx.work:work-runtime:2.9.1'
 }
