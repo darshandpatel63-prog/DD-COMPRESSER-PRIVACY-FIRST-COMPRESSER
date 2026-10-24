@@ -24,26 +24,13 @@ final class AdsConfig {
     /** Created in AdMob, not used by the app yet. Kept here so the ID is never lost. */
     static final String NATIVE = "ca-app-pub-9557757991977213/5013329464";
 
-    // ------------------------------------------------------------------
-    // Google's official TEST ad units (debug builds only)
-    // ------------------------------------------------------------------
-    static final String TEST_BANNER = "ca-app-pub-3940256099942544/9214589741";
-    static final String TEST_INTERSTITIAL = "ca-app-pub-3940256099942544/1033173712";
-    static final String TEST_REWARDED = "ca-app-pub-3940256099942544/5224354917";
-
-    /**
-     * Set to true to make even a RELEASE build show Google's test ads (safe for testing on your own phone).
-     * Never click your own live ads: it violates AdMob policy and can get the account disabled.
-     * Keep false for the real store release.
-     */
-    static final boolean FORCE_TEST_ADS = false;
-
-    private static boolean useTestAds() { return BuildConfig.DEBUG || FORCE_TEST_ADS; }
-    static String bannerId() { return useTestAds() ? TEST_BANNER : BANNER; }
-    static String interstitialId() { return useTestAds() ? TEST_INTERSTITIAL : INTERSTITIAL; }
-    static String rewardedId() { return useTestAds() ? TEST_REWARDED : REWARDED; }
-    /** "LIVE" or "TEST": which kind of ad unit IDs this build really uses (shown in the status toast). */
-    static String idMode() { return useTestAds() ? "TEST" : "LIVE"; }
+    // Live ad unit IDs are used in both debug and release builds.
+    static String bannerId() { return BANNER; }
+    static String interstitialId() { return INTERSTITIAL; }
+    static String rewardedId() { return REWARDED; }
+    static String rewardedInterstitialId() { return REWARDED_INTERSTITIAL; }
+    static String nativeId() { return NATIVE; }
+    static String idMode() { return "LIVE"; }
 
     // ------------------------------------------------------------------
     // WHEN TO SHOW ADS
@@ -55,7 +42,7 @@ final class AdsConfig {
     /** Interstitial: only after a batch where at least this many files were processed. */
     static final int INTERSTITIAL_MIN_FILES = 7;
 
-    /** Rewarded: the "Watch an ad" button gives this much ad-free time (banners + interstitials off). */
+    /** Rewarded: 30 minutes without interstitial/native ads; banner ads remain visible. */
     static final long AD_FREE_MS = 30L * 60L * 1000L;
 
     // ------------------------------------------------------------------
