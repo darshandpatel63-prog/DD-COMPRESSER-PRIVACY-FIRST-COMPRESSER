@@ -22,8 +22,8 @@ public final class CrashHandlerApplication extends Application {
             }
             StringWriter trace = new StringWriter();
             error.printStackTrace(new PrintWriter(trace));
-            String report = "App: DD Compressor\\nThread: " + thread.getName()
-                    + "\\n\\n" + trace;
+            String report = "App: DD Compressor\nThread: " + thread.getName()
+                    + "\n\n" + trace;
             try {
                 Intent intent = new Intent(getApplicationContext(), CrashActivity.class);
                 intent.putExtra(CrashActivity.EXTRA_ERROR_TEXT, report);
