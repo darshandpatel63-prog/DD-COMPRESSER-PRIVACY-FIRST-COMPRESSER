@@ -13,6 +13,8 @@ public final class CrashHandlerApplication extends Application {
 
     @Override public void onCreate() {
         super.onCreate();
+        // Do not recursively relaunch the report screen if its isolated process fails.
+        if ((getPackageName() + ":crash").equals(android.app.Application.getProcessName())) return;
         Thread.setDefaultUncaughtExceptionHandler((thread, error) -> {
             if (!REPORTING.compareAndSet(false, true)) {
                 Log.e("DDCompressorCrash", "Repeated crash while reporting", error);
