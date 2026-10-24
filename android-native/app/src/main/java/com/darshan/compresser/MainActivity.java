@@ -17,8 +17,6 @@ import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 import com.google.android.gms.ads.rewarded.RewardedAd;
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd;
-import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback;
 import com.google.android.gms.ads.nativead.NativeAd;
 import com.google.android.gms.ads.nativead.NativeAdView;
 import com.google.android.gms.ads.nativead.MediaView;
@@ -32,12 +30,6 @@ import java.util.concurrent.ExecutorService;
 
 public class MainActivity extends Activity {
     private static final int PICK = 501;
-    private static final String TEST_BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/9214589741";
-    private static final String TEST_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712";
-    private static final String TEST_REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917";
-    private static final String TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379";
-    private static final String TEST_NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110";
-    private static final String TEST_APP_OPEN_AD_UNIT_ID = "ca-app-pub-3940256099942544/9257395921";
     private static final int INTERSTITIAL_INTERVAL = 15;
     private static final int NATIVE_AD_INTERVAL = 3;
     private static final int LARGE_BATCH_MIN_FILES = 7;
@@ -47,16 +39,19 @@ public class MainActivity extends Activity {
 
     private ScrollView mainScroll;
     private FrameLayout adContainer;
+    private FrameLayout topAdContainer;
+    private AdView topBannerAdView;
+    private LinearLayout nativeFooterSlot;
+    private int statusBarInsetPx = 0;
+    private int navigationBarInsetPx = 0;
     private Button adPrivacyButton;
     private ConsentInformation consentInformation;
     private AdView bannerAdView;
     private InterstitialAd interstitialAd;
     private RewardedAd rewardedAd;
-    private RewardedInterstitialAd rewardedInterstitialAd;
     private AppOpenAd appOpenAd;
     private boolean adsSdkReady = false;
     private boolean loadingRewardedAd = false;
-    private boolean loadingRewardedInterstitialAd = false;
     private boolean loadingNativeAd = false;
     private boolean loadingAppOpenAd = false;
     private boolean showingFullScreenAd = false;
@@ -122,49 +117,17 @@ public class MainActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
-        if (bannerAdView != null) {
-            bannerAdView.destroy();
-            bannerAdView = null;
-        }
-        for (View view : nativeAdCards) {
-            Object tag = view.getTag();
-            if (tag instanceof NativeAd) ((NativeAd) tag).destroy();
-        }
-        nativeAdCards.clear();
+        if (bannerAdView != null) { bannerAdView.destroy(); bannerAdView = null; }
+        if (topBannerAdView != null) { topBannerAdView.destroy(); topBannerAdView = null; }
+        clearNativeAds();
         super.onDestroy();
     }
 
-    private String bannerAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_BANNER_AD_UNIT_ID
-                : BuildConfig.ADMOB_BANNER_AD_UNIT_ID;
-    }
-
-    private String interstitialAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_INTERSTITIAL_AD_UNIT_ID
-                : BuildConfig.ADMOB_INTERSTITIAL_AD_UNIT_ID;
-    }
-
-    private String rewardedAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_REWARDED_AD_UNIT_ID : BuildConfig.ADMOB_REWARDED_AD_UNIT_ID;
-    }
-
-    private String rewardedInterstitialAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_REWARDED_INTERSTITIAL_AD_UNIT_ID : BuildConfig.ADMOB_REWARDED_INTERSTITIAL_AD_UNIT_ID;
-    }
-
-    private String nativeAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_NATIVE_AD_UNIT_ID : BuildConfig.ADMOB_NATIVE_AD_UNIT_ID;
-    }
-
-    private String appOpenAdUnitId() {
-        return BuildConfig.ADMOB_TEST_MODE
-                ? TEST_APP_OPEN_AD_UNIT_ID : BuildConfig.ADMOB_APP_OPEN_AD_UNIT_ID;
-    }
+    private String bannerAdUnitId() { return BuildConfig.ADMOB_BANNER_AD_UNIT_ID; }
+    private String interstitialAdUnitId() { return BuildConfig.ADMOB_INTERSTITIAL_AD_UNIT_ID; }
+    private String rewardedAdUnitId() { return BuildConfig.ADMOB_REWARDED_AD_UNIT_ID; }
+    private String nativeAdUnitId() { return BuildConfig.ADMOB_NATIVE_AD_UNIT_ID; }
+    private String appOpenAdUnitId() { return BuildConfig.ADMOB_APP_OPEN_AD_UNIT_ID; }
 
     private boolean isAdFreeActive() {
         return System.currentTimeMillis() < adFreeUntilMs;
@@ -174,6 +137,9 @@ public class MainActivity extends Activity {
         adFreeUntilMs = Math.max(adFreeUntilMs, System.currentTimeMillis()) + AD_FREE_DURATION_MS;
         getSharedPreferences(AD_PREFS, MODE_PRIVATE).edit().putLong("ad_free_until", adFreeUntilMs).apply();
         scheduleAdFreeExpiry();
+        interstitialAd = null;
+        appOpenAd = null;
+        clearNativeAds();
         refreshAdFreeUi();
         toast("30 minutes of Ad-Free Compression unlocked!");
         Log.i("DDCompressorAds", "Ad-free pass granted: " + reason);
@@ -188,23 +154,23 @@ public class MainActivity extends Activity {
     private void refreshAdFreeUi() {
         boolean adFree = isAdFreeActive();
         if (adFree) scheduleAdFreeExpiry();
-        if (adContainer != null) {
-            if (adFree) {
-                adContainer.setVisibility(View.GONE);
-            } else if (adFreeUiWasActive && bannerAdView != null
-                    && bannerAdView.getParent() == adContainer) {
-                // Reload the banner only when the ad-free pass ends, not on every resume.
-                adContainer.setVisibility(View.GONE);
-                bannerAdView.loadAd(new AdRequest.Builder().build());
-            }
+
+        // Reward mode never hides either banner; only native/full-screen ads are suppressed.
+        if (topAdContainer != null && topBannerAdView != null && topBannerAdView.getParent() == topAdContainer) {
+            topAdContainer.setVisibility(View.VISIBLE);
         }
-        if (mainScroll != null) {
-            mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
-                    mainScroll.getPaddingRight(), adFree ? 0 : (bannerAdView != null ? dp(100) : 0));
+        if (adContainer != null && bannerAdView != null && bannerAdView.getParent() == adContainer) {
+            adContainer.setVisibility(View.VISIBLE);
         }
+        updateBannerLayoutPadding();
         for (View view : nativeAdCards) view.setVisibility(adFree ? View.GONE : View.VISIBLE);
         adFreeUiWasActive = adFree;
-        if (!adFree && adsSdkReady && bannerAdView == null) loadBannerAd();
+        if (!adFree && adsSdkReady) {
+            loadBannerAds();
+            if (interstitialAd == null) loadInterstitialAd();
+            if (appOpenAd == null) loadAppOpenAd();
+            loadNativeAdAtFooter();
+        }
     }
 
     private void loadRewardedAd() {
@@ -220,23 +186,6 @@ public class MainActivity extends Activity {
                         loadingRewardedAd = false;
                         rewardedAd = null;
                         Log.w("DDCompressorAds", "Rewarded ad failed: " + error.getMessage());
-                    }
-                });
-    }
-
-    private void loadRewardedInterstitialAd() {
-        if (!adsSdkReady || loadingRewardedInterstitialAd || rewardedInterstitialAd != null || isFinishing()) return;
-        loadingRewardedInterstitialAd = true;
-        RewardedInterstitialAd.load(this, rewardedInterstitialAdUnitId(), new AdRequest.Builder().build(),
-                new RewardedInterstitialAdLoadCallback() {
-                    @Override public void onAdLoaded(RewardedInterstitialAd ad) {
-                        loadingRewardedInterstitialAd = false;
-                        rewardedInterstitialAd = ad;
-                    }
-                    @Override public void onAdFailedToLoad(LoadAdError error) {
-                        loadingRewardedInterstitialAd = false;
-                        rewardedInterstitialAd = null;
-                        Log.w("DDCompressorAds", "Rewarded interstitial failed: " + error.getMessage());
                     }
                 });
     }
@@ -314,35 +263,8 @@ public class MainActivity extends Activity {
         ad.show(this, rewardItem -> earned[0] = true);
     }
 
-    private void showRewardedInterstitialForBatch() {
-        if (rewardedInterstitialAd == null) {
-            loadRewardedInterstitialAd();
-            toast("The required ad is loading. Try again shortly, or select 6 or fewer files.");
-            return;
-        }
-        RewardedInterstitialAd ad = rewardedInterstitialAd;
-        rewardedInterstitialAd = null;
-        final boolean[] earned = {false};
-        showingFullScreenAd = true;
-        ad.setFullScreenContentCallback(new FullScreenContentCallback() {
-            @Override public void onAdDismissedFullScreenContent() {
-                showingFullScreenAd = false;
-                loadRewardedInterstitialAd();
-                if (earned[0]) startCompressionBatch(true);
-                else toast("The reward was not earned. Select 6 or fewer files, or try again.");
-            }
-            @Override public void onAdFailedToShowFullScreenContent(AdError error) {
-                showingFullScreenAd = false;
-                Log.w("DDCompressorAds", "Rewarded interstitial show failed: " + error.getMessage());
-                loadRewardedInterstitialAd();
-                toast("Ad could not be shown. Please try again or select 6 or fewer files.");
-            }
-        });
-        ad.show(this, rewardItem -> earned[0] = true);
-    }
-
     private void loadNativeAdAfter(Item item) {
-        if (!adsSdkReady || isAdFreeActive() || isFinishing()) return;
+        if (!adsSdkReady || isAdFreeActive() || isFinishing() || item == null || item.card == null) return;
         AdLoader loader = new AdLoader.Builder(this, nativeAdUnitId())
                 .forNativeAd(nativeAd -> {
                     if (isFinishing() || isAdFreeActive() || item.card == null) {
@@ -359,40 +281,97 @@ public class MainActivity extends Activity {
         loader.loadAd(new AdRequest.Builder().build());
     }
 
+    private void loadNativeAdAtFooter() {
+        if (!adsSdkReady || isAdFreeActive() || isFinishing() || nativeFooterSlot == null
+                || nativeFooterSlot.getChildCount() > 0 || loadingNativeAd) return;
+        loadingNativeAd = true;
+        AdLoader loader = new AdLoader.Builder(this, nativeAdUnitId())
+                .forNativeAd(nativeAd -> {
+                    loadingNativeAd = false;
+                    if (isFinishing() || isAdFreeActive() || nativeFooterSlot == null) {
+                        nativeAd.destroy();
+                        return;
+                    }
+                    LinearLayout adCard = createNativeAdCard(nativeAd);
+                    nativeFooterSlot.addView(adCard, new LinearLayout.LayoutParams(-1, -2));
+                    nativeFooterSlot.setVisibility(View.VISIBLE);
+                })
+                .withAdListener(new AdListener() {
+                    @Override public void onAdFailedToLoad(LoadAdError error) {
+                        loadingNativeAd = false;
+                        Log.w("DDCompressorAds", "Footer native ad failed: " + error.getMessage());
+                    }
+                }).build();
+        loader.loadAd(new AdRequest.Builder().build());
+    }
+
     private void addNativeAdCardAfter(Item item, NativeAd nativeAd) {
+        LinearLayout adCard = createNativeAdCard(nativeAd);
+        int index = list.indexOfChild(item.card);
+        if (index >= 0) {
+            list.addView(adCard, index + 1, margin(0,0,0,8));
+        } else {
+            nativeAdCards.remove(adCard);
+            nativeAd.destroy();
+        }
+    }
+
+    private LinearLayout createNativeAdCard(NativeAd nativeAd) {
         NativeAdView adView = new NativeAdView(this);
         LinearLayout adCard = card();
         adCard.addView(text("Ad", 9, Color.rgb(227,162,74)));
         LinearLayout adContent = new LinearLayout(this);
         adContent.setOrientation(LinearLayout.VERTICAL);
-        TextView headline = text("", 13, Color.WHITE);
+
+        TextView headline = text(nativeAd.getHeadline() == null ? "" : nativeAd.getHeadline(), 13, Color.WHITE);
         headline.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         adContent.addView(headline);
+
+        MediaView mediaView = new MediaView(this);
+        mediaView.setMinimumHeight(dp(120));
+        adContent.addView(mediaView, new LinearLayout.LayoutParams(-1, dp(170)));
+
         TextView body = text("", 10.5f, Color.rgb(154,161,168));
-        adContent.addView(body, margin(0,3,0,0));
-        TextView cta = text("", 11, Color.rgb(227,162,74));
-        cta.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        adContent.addView(cta, margin(0,5,0,0));
-        adView.setHeadlineView(headline);
-        adView.setBodyView(body);
-        adView.setCallToActionView(cta);
-        adView.addView(adContent);
-        headline.setText(nativeAd.getHeadline());
         if (nativeAd.getBody() != null) {
             body.setText(nativeAd.getBody());
             body.setVisibility(View.VISIBLE);
         } else body.setVisibility(View.GONE);
+        adContent.addView(body, margin(0,3,0,0));
+
+        TextView cta = text("", 11, Color.rgb(227,162,74));
+        cta.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         if (nativeAd.getCallToAction() != null) {
             cta.setText(nativeAd.getCallToAction());
             cta.setVisibility(View.VISIBLE);
         } else cta.setVisibility(View.GONE);
+        adContent.addView(cta, margin(0,5,0,0));
+
+        adView.setHeadlineView(headline);
+        adView.setMediaView(mediaView);
+        adView.setBodyView(body);
+        adView.setCallToActionView(cta);
+        adView.addView(adContent);
         adView.setNativeAd(nativeAd);
+
         adCard.addView(adView);
         adCard.setTag(nativeAd);
         nativeAdCards.add(adCard);
-        int index = list.indexOfChild(item.card);
-        if (index >= 0) list.addView(adCard, index + 1, margin(0,0,0,8));
-        else nativeAd.destroy();
+        return adCard;
+    }
+
+    private void clearNativeAds() {
+        for (View view : new ArrayList<>(nativeAdCards)) {
+            try {
+                Object tag = view.getTag();
+                if (tag instanceof NativeAd) ((NativeAd) tag).destroy();
+                if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+            } catch (Throwable ignored) { }
+        }
+        nativeAdCards.clear();
+        if (nativeFooterSlot != null) {
+            nativeFooterSlot.removeAllViews();
+            nativeFooterSlot.setVisibility(View.GONE);
+        }
     }
 
     private void initializeAdConsent() {
@@ -440,77 +419,83 @@ public class MainActivity extends Activity {
         if (adsSdkReady || isFinishing()) return;
         MobileAds.initialize(this, initializationStatus -> runOnUiThread(() -> {
             adsSdkReady = true;
-            loadBannerAd();
+            loadBannerAds();
             loadInterstitialAd();
             loadRewardedAd();
-            loadRewardedInterstitialAd();
             loadAppOpenAd();
             refreshAdFreeUi();
+            if (!isAdFreeActive()) loadNativeAdAtFooter();
         }));
     }
 
-    private void loadBannerAd() {
+    private void loadBannerAds() {
         if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()
-                || adContainer == null || isFinishing()) return;
+                || isFinishing()) return;
+        if (topBannerAdView == null) loadBannerAd(true);
+        if (bannerAdView == null) loadBannerAd(false);
+    }
 
-        if (bannerAdView != null) {
-            bannerAdView.destroy();
-            bannerAdView = null;
-        }
+    private void loadBannerAd(boolean top) {
+        if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()
+                || isFinishing()) return;
+        FrameLayout container = top ? topAdContainer : adContainer;
+        if (container == null) return;
+
+        AdView old = top ? topBannerAdView : bannerAdView;
+        if (old != null) old.destroy();
+        container.removeAllViews();
 
         int widthDp = (int) (getResources().getDisplayMetrics().widthPixels
                 / getResources().getDisplayMetrics().density);
         AdSize adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(this, widthDp);
         AdView view = new AdView(this);
-        bannerAdView = view;
+        if (top) topBannerAdView = view; else bannerAdView = view;
         view.setAdUnitId(bannerAdUnitId());
         view.setAdSize(adSize);
-        adContainer.removeAllViews();
-        adContainer.addView(view, new FrameLayout.LayoutParams(
-                -1, adSize.getHeightInPixels(this), Gravity.CENTER));
+        container.addView(view, new FrameLayout.LayoutParams(-1, adSize.getHeightInPixels(this), Gravity.CENTER));
+
         view.setAdListener(new AdListener() {
             @Override public void onAdLoaded() {
                 runOnUiThread(() -> {
-                    if (isFinishing() || adContainer == null) return;
-                    if (isAdFreeActive()) {
-                        adContainer.setVisibility(View.GONE);
-                        return;
-                    }
-                    adContainer.setVisibility(View.VISIBLE);
-                    if (mainScroll != null) {
-                        int navBottom = 0;
-                        if (android.os.Build.VERSION.SDK_INT >= 30) {
-                            android.view.WindowInsets wi = getWindow().getDecorView().getRootWindowInsets();
-                            if (wi != null) navBottom = wi.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
-                        }
-                        mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
-                                mainScroll.getPaddingRight(), dp(16) + adSize.getHeightInPixels(MainActivity.this) + navBottom);
-                    }
+                    if (isFinishing()) return;
+                    if (top ? topBannerAdView != view : bannerAdView != view) return;
+                    container.setVisibility(View.VISIBLE);
+                    updateBannerLayoutPadding();
                 });
             }
-
             @Override public void onAdFailedToLoad(LoadAdError error) {
-                Log.w("DDCompressorAds", "Banner failed: " + error.getMessage());
+                Log.w("DDCompressorAds", (top ? "Top banner" : "Bottom banner") + " failed: " + error.getMessage());
                 runOnUiThread(() -> {
-                    if (adContainer != null) adContainer.setVisibility(View.GONE);
-                    if (mainScroll != null) {
-                        int navBottom = 0;
-                        if (android.os.Build.VERSION.SDK_INT >= 30) {
-                            android.view.WindowInsets wi = getWindow().getDecorView().getRootWindowInsets();
-                            if (wi != null) navBottom = wi.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
-                        }
-                        mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
-                                mainScroll.getPaddingRight(), navBottom + dp(16));
-                    }
+                    if (top ? topBannerAdView != view : bannerAdView != view) return;
+                    container.setVisibility(View.GONE);
+                    if (top) topBannerAdView = null; else bannerAdView = null;
+                    container.removeAllViews();
+                    view.destroy();
+                    updateBannerLayoutPadding();
                 });
             }
         });
         view.loadAd(new AdRequest.Builder().build());
     }
 
+    private void updateBannerLayoutPadding() {
+        int topHeight = topBannerAdView != null && topAdContainer != null
+                && topAdContainer.getVisibility() == View.VISIBLE
+                ? topBannerAdView.getAdSize().getHeightInPixels(this) : 0;
+        int bottomHeight = bannerAdView != null && adContainer != null
+                && adContainer.getVisibility() == View.VISIBLE
+                ? bannerAdView.getAdSize().getHeightInPixels(this) : 0;
+        if (mainScroll != null) {
+            mainScroll.setPadding(mainScroll.getPaddingLeft(),
+                    statusBarInsetPx + topHeight + dp(8),
+                    mainScroll.getPaddingRight(),
+                    bottomHeight + navigationBarInsetPx + dp(16));
+        }
+    }
+
     private void loadInterstitialAd() {
         if (!adsSdkReady || consentInformation == null || !consentInformation.canRequestAds()
-                || isFinishing() || interstitialAd != null) return;
+                || isFinishing() || isAdFreeActive() || interstitialAd != null) return;
 
         InterstitialAd.load(this, interstitialAdUnitId(), new AdRequest.Builder().build(),
                 new InterstitialAdLoadCallback() {
@@ -639,9 +624,18 @@ public class MainActivity extends Activity {
         TextView footer = text("D.D. Tech Labs  •  DD Compressor", 10, Color.rgb(100,108,116));
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
+        nativeFooterSlot = new LinearLayout(this);
+        nativeFooterSlot.setOrientation(LinearLayout.VERTICAL);
+        nativeFooterSlot.setVisibility(View.GONE);
+        root.addView(nativeFooterSlot, margin(0,12,0,0));
 
         FrameLayout screen = new FrameLayout(this);
         screen.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+        topAdContainer = new FrameLayout(this);
+        topAdContainer.setBackgroundColor(Color.rgb(16,18,20));
+        topAdContainer.setVisibility(View.GONE);
+        FrameLayout.LayoutParams topParams = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        screen.addView(topAdContainer, topParams);
         adContainer = new FrameLayout(this);
         adContainer.setBackgroundColor(Color.rgb(16,18,20));
         adContainer.setVisibility(View.GONE);
@@ -650,18 +644,19 @@ public class MainActivity extends Activity {
         // Android 15+ edge-to-edge can place anchored banners behind the navigation bar.
         // Keep the banner above system navigation and reserve enough scroll space for it.
         screen.setOnApplyWindowInsetsListener((view, insets) -> {
-            int navBottom = insets.getSystemWindowInsetBottom();
-            FrameLayout.LayoutParams current = (FrameLayout.LayoutParams) adContainer.getLayoutParams();
-            if (current.bottomMargin != navBottom) {
-                current.bottomMargin = navBottom;
-                adContainer.setLayoutParams(current);
+            statusBarInsetPx = insets.getSystemWindowInsetTop();
+            navigationBarInsetPx = insets.getSystemWindowInsetBottom();
+            FrameLayout.LayoutParams topParamsNow = (FrameLayout.LayoutParams) topAdContainer.getLayoutParams();
+            if (topParamsNow.topMargin != statusBarInsetPx) {
+                topParamsNow.topMargin = statusBarInsetPx;
+                topAdContainer.setLayoutParams(topParamsNow);
             }
-            if (mainScroll != null) {
-                int bannerSpace = bannerAdView != null && adContainer.getVisibility() == View.VISIBLE
-                        ? bannerAdView.getAdSize().getHeightInPixels(this) : 0;
-                mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
-                        mainScroll.getPaddingRight(), bannerSpace + navBottom + dp(16));
+            FrameLayout.LayoutParams bottomParams = (FrameLayout.LayoutParams) adContainer.getLayoutParams();
+            if (bottomParams.bottomMargin != navigationBarInsetPx) {
+                bottomParams.bottomMargin = navigationBarInsetPx;
+                adContainer.setLayoutParams(bottomParams);
             }
+            updateBannerLayoutPadding();
             return insets;
         });
         setContentView(screen);
@@ -770,14 +765,11 @@ public class MainActivity extends Activity {
             item.targetBytes = parseTarget(item);
             if (item.targetBytes <= 0) { toast("Enter a valid target size for: " + item.name); return; }
         }
-        if (items.size() >= LARGE_BATCH_MIN_FILES && !isAdFreeActive()) {
-            showRewardedInterstitialForBatch();
-            return;
-        }
-        startCompressionBatch(false);
+        // Never require an ad to compress files. The separate Watch-an-ad button is opt-in.
+        startCompressionBatch();
     }
 
-    private void startCompressionBatch(boolean earnedBatchAd) {
+    private void startCompressionBatch() {
         if (items.isEmpty() || compressionRunning) return;
         compressionRunning = true;
         final ArrayList<Item> batchItems = new ArrayList<>(items);
