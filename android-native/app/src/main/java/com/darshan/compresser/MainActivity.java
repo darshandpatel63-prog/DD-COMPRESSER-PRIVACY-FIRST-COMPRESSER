@@ -141,7 +141,7 @@ public class MainActivity extends Activity {
         appOpenAd = null;
         clearNativeAds();
         refreshAdFreeUi();
-        toast("30 minutes of Ad-Free Compression unlocked!");
+        toast("Reward active: banner ads only for 30 minutes.");
         Log.i("DDCompressorAds", "Ad-free pass granted: " + reason);
     }
 
@@ -236,7 +236,7 @@ public class MainActivity extends Activity {
 
     private void showRewardedAdForAdFree() {
         if (isAdFreeActive()) {
-            toast("Ad-Free Compression is already active.");
+            toast("Banner-only mode is already active.");
             return;
         }
         if (rewardedAd == null) {
@@ -487,7 +487,7 @@ public class MainActivity extends Activity {
                 ? bannerAdView.getAdSize().getHeightInPixels(this) : 0;
         if (mainScroll != null) {
             mainScroll.setPadding(mainScroll.getPaddingLeft(),
-                    statusBarInsetPx + topHeight + dp(8),
+                    statusBarInsetPx + topHeight + (topHeight > 0 ? dp(20) : dp(8)),
                     mainScroll.getPaddingRight(),
                     bottomHeight + navigationBarInsetPx + dp(16));
         }
@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
         info.addView(infoT);
         info.addView(text("Each file has its own output format and target size. The native engine keeps the highest practical quality while trying to reach your selected target.", 10.5f, Color.rgb(154,161,168)));
 
-        Button adFreeBtn = button("Watch an ad • 30 min Ad-Free", Color.rgb(227,162,74), Color.rgb(42,28,8));
+        Button adFreeBtn = button("Watch an ad • 30 min Banner Only", Color.rgb(227,162,74), Color.rgb(42,28,8));
         adFreeBtn.setOnClickListener(v -> showRewardedAdForAdFree());
         info.addView(adFreeBtn, margin(0,10,0,0));
 
