@@ -1,0 +1,151 @@
+name: Apply uploaded zip
+
+# ONE workflow only. Upload a .zip to the repository root on claude-fixes-the-error.
+# It unzips, puts every file in its original path (new files added, existing files updated),
+# then deletes the zip. No artifacts, no caches (saves GitHub storage).
+# .github/ is protected: a zip can never change workflows.
+
+on:
+  push:
+    branches: [claude-fixes-the-error]
+    paths: ['*.zip']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-zip
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unzip and place files
+        id: apply
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import os, sys, zipfile, shutil, tempfile, posixpath, glob
+
+          MAX_FILES = 3000
+          MAX_TOTAL = 100 * 1024 * 1024
+          MAX_ONE = 25 * 1024 * 1024
+          BLOCKED_PARTS = {".git"}
+          BLOCKED_PREFIXES = (".github/",)
+
+          summary = []
+          def log(msg):
+              print(msg)
+              summary.append(msg)
+
+          def check_zip(zf):
+              problems, total, files = [], 0, 0
+              for info in zf.infolist():
+                  name = info.filename.replace("\\", "/")
+                  if info.is_dir():
+                      continue
+                  files += 1
+                  total += info.file_size
+                  norm = posixpath.normpath(name)
+                  parts = norm.split("/")
+                  if name.startswith("/") or ":" in parts[0]:
+                      problems.append(f"absolute path: {name}")
+                  elif ".." in parts or norm.startswith("../"):
+                      problems.append(f"path traversal: {name}")
+                  elif any(p in BLOCKED_PARTS for p in parts):
+                      problems.append(f"blocked (.git): {name}")
+                  elif norm.startswith(BLOCKED_PREFIXES):
+                      problems.append(f"blocked (.github is protected): {name}")
+                  mode = (info.external_attr >> 16) & 0o170000
+                  if mode == 0o120000:
+                      problems.append(f"symlink not allowed: {name}")
+                  if info.file_size > MAX_ONE:
+                      problems.append(f"file too large: {name}")
+              if files > MAX_FILES:
+                  problems.append(f"too many files: {files}")
+              if total > MAX_TOTAL:
+                  problems.append(f"too large uncompressed: {total}")
+              if files == 0:
+                  problems.append("zip is empty")
+              return problems
+
+          def apply_zip(path):
+              added, updated = [], []
+              with zipfile.ZipFile(path) as zf:
+                  problems = check_zip(zf)
+                  if problems:
+                      return None, problems
+                  for info in zf.infolist():
+                      if info.is_dir():
+                          continue
+                      rel = posixpath.normpath(info.filename.replace("\\", "/"))
+                      dest = os.path.join(os.getcwd(), *rel.split("/"))
+                      if os.path.realpath(dest).startswith(os.path.realpath(os.getcwd()) + os.sep) is False:
+                          return None, [f"escapes repo: {rel}"]
+                      existed = os.path.exists(dest)
+                      os.makedirs(os.path.dirname(dest), exist_ok=True)
+                      with zf.open(info) as src, open(dest, "wb") as out:
+                          shutil.copyfileobj(src, out)
+                      if (info.external_attr >> 16) & 0o111:
+                          os.chmod(dest, 0o755)
+                      (updated if existed else added).append(rel)
+              return (added, updated), []
+
+          zips = sorted(glob.glob("*.zip"))
+          if not zips:
+              log("No zip at repo root. Nothing to do.")
+              sys.exit(0)
+
+          failed = False
+          applied = []
+          for z in zips:
+              result, problems = apply_zip(z)
+              if problems:
+                  failed = True
+                  log(f"REJECTED {z}:")
+                  for p in problems[:20]:
+                      log(f"  - {p}")
+                  continue
+              added, updated = result
+              log(f"APPLIED {z}: {len(added)} new, {len(updated)} updated")
+              applied.append(z)
+
+          with open("/tmp/applied_zips.txt", "w") as f:
+              f.write("\n".join(applied) + ("\n" if applied else ""))
+
+          sp = os.environ.get("GITHUB_STEP_SUMMARY")
+          if sp:
+              with open(sp, "a") as f:
+                  f.write("\n".join(summary) + "\n")
+          sys.exit(1 if failed else 0)
+          PY
+
+      - name: Delete applied zips and commit
+        run: |
+          set -e
+          if [ -s /tmp/applied_zips.txt ]; then
+            while IFS= read -r z || [ -n "$z" ]; do
+              [ -n "$z" ] && git rm -f -- "$z"
+            done < /tmp/applied_zips.txt
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "Apply uploaded zip [skip ci]"
+            git pull --rebase origin "$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
+
+      - name: Fail if a zip was rejected
+        if: steps.apply.outcome == 'failure'
+        run: |
+          echo "A zip was rejected. See the previous step. The rejected zip is still in the repo root."
+          exit 1
