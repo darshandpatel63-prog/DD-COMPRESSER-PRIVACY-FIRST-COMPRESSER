@@ -2,42 +2,54 @@
 
 ## Suggested listing copy
 
-**Short description (≤80 chars):**
-> Compress photos, videos, audio & PDFs — locally on your device. No uploads.
+**Short description (≤80 characters):**
+> Compress images, videos, audio & PDFs locally on your device.
 
 **Full description starting point:**
-> DD Compressor is a privacy-first file compression utility for images, video, audio, and PDFs. Core compression runs on your own device instead of a cloud compression server.
+> DD Compressor is a privacy-first utility for compressing supported images, videos, audio files and PDFs directly on your Android device. The core compression process is designed to run locally instead of sending selected files to a D.D. Tech Labs compression server.
 >
-> • Multi-file queue
-> • Target size controls
-> • Local image, video, audio and PDF engines
-> • Review results before saving
-> • Offline-first core compression
-> • Native Android save/share support
-> • First store release: free and ad-free
+> • Select and process multiple files in a queue
+> • Choose output formats where supported
+> • Set an individual target size for each file
+> • Review results before saving or sharing
+> • Save output to Downloads / DD Compressor
+> • Local-first processing of supported files
+> • No account required for core compression
+>
+> **Advertising:** The Android app integrates Google Mobile Ads SDK (AdMob) and Google User Messaging Platform (UMP). Banner Ads may appear at the top and bottom of the app. Native Ads may appear in the app and between completed file results; interstitial and app-open ads may also appear at eligible times. Ad availability varies by consent, connection, region and inventory.
+>
+> **Optional 30-minute banner-only reward:** Choose to watch and successfully earn the rewarded ad to suppress Interstitial, Native and App Open ads for 30 minutes. Banner Ads may continue to appear during this period. This is not a fully ad-free mode, and watching an ad is never required to compress files.
 
-The current UI is an app-style local utility, not a remote file-upload interface.
+The Android release is a native Android application; do not describe it as a webview or Capacitor wrapper.
 
 ## Privacy policy URL
 
 Use the hosted HTML Privacy Policy, not a Markdown source file:
 
-https://dd-tech-labs-zsrw.vercel.app/products/dd-compressor/privacy.html
+https://dd-tech-labs-hub.vercel.app/products/dd-compressor/privacy.html
 
-The app also includes local HTML copies under `legal/` so users can open Privacy Policy, Terms, Disclaimer and third-party license information directly from the app without opening a `.md` source document.
+The Android app links to the hosted Privacy Policy and contains in-app navigation for relevant privacy and advertising consent options.
 
-## First ad-free Android build
+## Advertising and data disclosures
 
-The first store build keeps AdMob disabled and does not install the AdMob plugin.
+- Google Mobile Ads SDK (AdMob) is integrated for supported ad formats.
+- Google User Messaging Platform (UMP) is used for consent information and privacy options where applicable.
+- Advertising/device identifiers, IP address or approximate location inferred from IP, diagnostics, ad delivery/measurement and ad interaction information may be processed by Google and its partners, subject to service details, device settings, region and consent.
+- Do not describe the app as ad-free. The optional reward suppresses Interstitial, Native and App Open ads for 30 minutes while Banner Ads may remain visible.
+- Ensure store-specific data safety and advertising declarations match the exact APK being submitted.
 
-## Later monetized build
+## Permissions and file handling
 
-A later build may enable Google AdMob/UMP through the manual workflow and GitHub Actions Secrets. Update the store's data-safety/privacy declarations to match the exact release being submitted.
+The native Android app uses the Android file picker for selecting files and Android's Downloads/MediaStore APIs to save output. Sharing uses Android's share sheet and FileProvider. Avoid adding broad storage/media permissions unless a future feature truly requires them.
 
-## Permissions
+## APK size and build
 
-The current Android build is designed around the narrowest runtime permissions possible. Saving compressed output uses the app's own external-files area through Capacitor Filesystem, and sharing is handled by the Android share sheet. Do not add broad storage/media permissions unless a future feature truly requires them.
+The GitHub Actions native release workflow builds from the root `android-native/` project, signs the release APK using repository secrets, verifies the signature and enforces a final APK size below 25 MB. Test the exact signed artifact before submitting it to a store.
 
-## APK size
+## Pre-submission checklist
 
-The workflow enforces the current project target of a signed APK below 25 MB. FFmpeg WebAssembly is the dominant size constraint; do not inflate the app with unnecessary packages, remote UI libraries or duplicated assets.
+- Verify that the uploaded APK is the latest signed release from the intended branch.
+- Test app launch, file selection, compression, save/share, consent options and the rewarded flow.
+- Verify top/bottom banners, native placement and full-screen ad timing on a real device; ad availability itself is not guaranteed.
+- Confirm that the hosted Privacy Policy, Disclaimer and Terms accurately describe the submitted app version.
+- Confirm the store listing and any privacy/data-safety declarations match the enabled AdMob/UMP SDKs.
