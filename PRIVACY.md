@@ -1,6 +1,6 @@
 # Privacy Policy — DD Compressor
 
-**Last updated:** 1 October 2026
+**Last updated:** 24 October 2026
 
 **Developer:** D D Patel  
 **Organization / Project:** D.D. Tech Labs  
@@ -38,15 +38,15 @@ Core compression is designed to run locally. A particular Android release may us
 
 Network access for such services does not mean that your selected compression files are uploaded to a D.D. Tech Labs compression server.
 
-## 5. Advertising
+## 5. Advertising, AdMob and consent
 
-The current store-first Android build is intended to be ad-free and does not include the Google AdMob SDK.
+The native Android app integrates the Google Mobile Ads SDK (AdMob) and Google User Messaging Platform (UMP). Depending on the version, region, network, consent status, available inventory and app state, the app may show Banner, Native, Interstitial, Rewarded and App Open ads.
 
-If a future Android release enables Google AdMob or another advertising service, that release may process advertising-related information such as advertising/device identifiers, diagnostics, ad delivery or measurement data, and ad interaction information, subject to the applicable service documentation, device settings, region, and consent requirements.
+Google and its advertising partners may process advertising/device identifiers, IP address or approximate location inferred from IP, diagnostics, ad delivery/measurement information and ad interaction information. The exact data processed can vary with Google services, device settings, region and consent choices. The app uses UMP consent flows and provides an in-app route to ad privacy options where required and available.
 
-If consent is legally required for an enabled advertising service, the applicable consent flow will be used before requesting ads where required.
+**Optional 30-minute banner-only reward:** When you choose to watch and successfully earn the in-app rewarded ad, Banner Ads may continue to appear for the next 30 minutes. Interstitial, Native and App Open ads are suppressed during that reward period. This is not a fully ad-free mode. The reward is optional and is never required to compress files. Banner delivery can still be unavailable because of network access, consent, inventory or ad-serving conditions.
 
-Advertising-related third-party processing is separate from the local compression engine. Selected file contents are not intentionally sent to an advertising provider by the compression engine.
+Advertising-related processing is separate from local file compression. Selected file contents are not intentionally sent to Google or another advertising provider by the compression engine. For more information, see Google's [Privacy Policy](https://policies.google.com/privacy) and [AdMob Help](https://support.google.com/admob/).
 
 ## 6. Analytics and tracking
 
@@ -69,7 +69,7 @@ D.D. Tech Labs:
 - does not operate server-side storage for your compression files; and
 - does not intentionally inspect, publish, rent, or sell the contents of files you select for compression.
 
-Third-party services, if enabled in a future release, may process their own permitted information according to their applicable documentation and settings.
+Enabled third-party advertising services may process permitted advertising-related information according to their applicable documentation, device settings, region and consent choices.
 
 ## 9. Retention and deletion
 
