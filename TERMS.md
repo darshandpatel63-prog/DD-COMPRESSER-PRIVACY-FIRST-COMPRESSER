@@ -1,16 +1,16 @@
 # Terms of Service — DD Compressor
 
-**Last updated:** September 2026
+**Last updated:** 24 October 2026
 
 By using DD Compressor (the website or the Android app), you agree to these terms. Please read the Disclaimer document too — it covers the "no guarantees" side of things this document doesn't repeat.
 
 ## What this app is
 
-DD Compressor is a free tool that compresses images, video, audio, and PDF files entirely on your own device. It has no server, no account system, and no cost.
+DD Compressor is a free-to-use utility for compressing supported images, video, audio, PDFs and other files locally on your device. The core compressor does not require an account or send selected files to a D.D. Tech Labs compression server. The Android app may display third-party advertisements.
 
 ## Your files
 
-You keep all rights to whatever you compress. This app claims no ownership, license, or interest in your files at any point — it processes them locally and does not retain a copy after you close the tab or leave the screen. It is your responsibility to only compress files you have the right to use and modify (for example, don't use this tool, or any tool, to strip protections from content you don't have the rights to).
+You keep all rights to the files you select. DD Compressor does not claim ownership of your files and is designed to process them locally rather than upload them to a D.D. Tech Labs compression server. Temporary files or processing data may remain locally while a task runs, and saved output is controlled by your device and operating system. You are responsible for using the app only with files you have the right to process.
 
 ## Acceptable use
 
@@ -23,6 +23,12 @@ Please don't:
 ## No warranty
 
 This app is provided free of charge, "as is," with no warranty of any kind — see the Disclaimer for the full detail. In short: it's a genuinely useful tool built and tested carefully, but it's not a substitute for professional software with paid support, and you should always keep a backup of an original file before relying entirely on a compressed copy.
+
+## Advertising and consent
+
+The Android app integrates Google AdMob and Google User Messaging Platform (UMP). Advertising may be provided in Banner, Native, Interstitial, Rewarded and App Open formats as implemented in the version you use. Ads can depend on consent, region, connectivity, available inventory and provider rules.
+
+If you choose to watch and successfully earn the in-app rewarded ad, the app activates a 30-minute banner-only mode: Banner Ads may continue to appear, while Interstitial, Native and App Open ads are suppressed. This reward is optional and is not required to compress files. It is not a fully ad-free mode. Do not click or interact with ads fraudulently or in a manner that violates the advertising provider's policies.
 
 ## Open source
 
