@@ -25,7 +25,7 @@ public class MainActivity extends Activity {
     private TextView status;
     private final ExecutorService executor = java.util.concurrent.Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
-    private LinearLayout adTopSlot, adBottomSlot;
+    private LinearLayout adTopSlot, adBottomSlot, adNativeSlot;
     private AdsManager adsManager;
 
     @Override public void onCreate(Bundle state) {
@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     /** Ads are optional: whatever happens here must never stop the app from opening. */
     private void startAds() {
         try {
-            adsManager = new AdsManager(this, adTopSlot, adBottomSlot, () -> toast("30 minutes ad-free activated."));
+            adsManager = new AdsManager(this, adTopSlot, adBottomSlot, adNativeSlot, () -> toast("30 minutes ad-free activated."));
             adsManager.start();
         } catch (Throwable ignored) {
             adsManager = null;
@@ -153,6 +153,9 @@ public class MainActivity extends Activity {
         TextView footer = text("D.D. Tech Labs  •  DD Compressor", 10, Color.rgb(100,108,116));
         footer.setGravity(Gravity.CENTER);
         root.addView(footer);
+        adNativeSlot = new LinearLayout(this);
+        adNativeSlot.setOrientation(LinearLayout.VERTICAL);
+        root.addView(adNativeSlot, margin(0, 12, 0, 0));
         setContentView(scroll);
     }
 
@@ -284,6 +287,7 @@ public class MainActivity extends Activity {
                             }));
                     item.result = result;
                     main.post(() -> showResult(item));
+                    if (index % 3 == 0) main.post(() -> { try { if (adsManager != null && item.card != null) adsManager.showNativeAd(item.card); } catch (Throwable ignored) { } });
                 } catch (Exception e) {
                     main.post(() -> toast("Failed: " + item.name + " — " + e.getMessage()));
                 }
