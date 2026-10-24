@@ -478,8 +478,13 @@ public class MainActivity extends Activity {
                     }
                     adContainer.setVisibility(View.VISIBLE);
                     if (mainScroll != null) {
-                        mainScroll.setPadding(mainScroll.getPaddingLeft(),
-                                mainScroll.getPaddingTop(), mainScroll.getPaddingRight(), dp(100));
+                        int navBottom = 0;
+                        if (android.os.Build.VERSION.SDK_INT >= 30) {
+                            android.view.WindowInsets wi = getWindow().getDecorView().getRootWindowInsets();
+                            if (wi != null) navBottom = wi.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
+                        }
+                        mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
+                                mainScroll.getPaddingRight(), dp(16) + adSize.getHeightInPixels(MainActivity.this) + navBottom);
                     }
                 });
             }
@@ -489,8 +494,13 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     if (adContainer != null) adContainer.setVisibility(View.GONE);
                     if (mainScroll != null) {
+                        int navBottom = 0;
+                        if (android.os.Build.VERSION.SDK_INT >= 30) {
+                            android.view.WindowInsets wi = getWindow().getDecorView().getRootWindowInsets();
+                            if (wi != null) navBottom = wi.getInsets(android.view.WindowInsets.Type.navigationBars()).bottom;
+                        }
                         mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
-                                mainScroll.getPaddingRight(), 0);
+                                mainScroll.getPaddingRight(), navBottom + dp(16));
                     }
                 });
             }
@@ -637,7 +647,25 @@ public class MainActivity extends Activity {
         adContainer.setVisibility(View.GONE);
         FrameLayout.LayoutParams adParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
         screen.addView(adContainer, adParams);
+        // Android 15+ edge-to-edge can place anchored banners behind the navigation bar.
+        // Keep the banner above system navigation and reserve enough scroll space for it.
+        screen.setOnApplyWindowInsetsListener((view, insets) -> {
+            int navBottom = insets.getSystemWindowInsetBottom();
+            FrameLayout.LayoutParams current = (FrameLayout.LayoutParams) adContainer.getLayoutParams();
+            if (current.bottomMargin != navBottom) {
+                current.bottomMargin = navBottom;
+                adContainer.setLayoutParams(current);
+            }
+            if (mainScroll != null) {
+                int bannerSpace = bannerAdView != null && adContainer.getVisibility() == View.VISIBLE
+                        ? bannerAdView.getAdSize().getHeightInPixels(this) : 0;
+                mainScroll.setPadding(mainScroll.getPaddingLeft(), mainScroll.getPaddingTop(),
+                        mainScroll.getPaddingRight(), bannerSpace + navBottom + dp(16));
+            }
+            return view.onApplyWindowInsets(insets);
+        });
         setContentView(screen);
+        screen.requestApplyInsets();
     }
 
     private void openPicker() {
