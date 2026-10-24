@@ -1,6 +1,6 @@
 # Disclaimer — DD Compressor
 
-**Last updated:** September 2026
+**Last updated:** 24 October 2026
 
 ## No warranty
 
@@ -21,6 +21,12 @@ Stated plainly, and kept up to date as the app changes (see the project README f
 - Very large files (specifically, video/audio above a size documented in the app and its README) cannot be processed reliably by this app's in-device engine, and are refused outright rather than risk a stuck or crashed session.
 - Certain color formats (CMYK images, common in print-sourced scans) are intentionally left uncompressed rather than risk incorrect colors, based on a real issue that was found, diagnosed, and fixed this way.
 - PDF compression only recompresses certain kinds of embedded images; other content in a PDF (text, vector graphics, forms) is left untouched by design, and a PDF without recompressible images may see little or no size reduction.
+
+## Advertising and optional banner-only reward
+
+The Android app uses Google AdMob and Google User Messaging Platform (UMP). Advertising availability and content are controlled by third-party advertising systems and can vary. D.D. Tech Labs does not guarantee that an ad will be available or endorse an advertised product merely because it appears.
+
+If you voluntarily watch and successfully earn the in-app rewarded ad, the app activates a 30-minute banner-only mode: Banner Ads may remain visible, while Interstitial, Native and App Open ads are suppressed. This is not a fully ad-free mode, and watching an ad is not required to compress files. Banner delivery remains subject to network, consent, inventory and provider conditions.
 
 ## Not professional advice
 
